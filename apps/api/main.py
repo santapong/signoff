@@ -27,13 +27,35 @@ DATA_DIR = Path(os.environ.get("SIGNOFF_DATA_DIR", "datasets"))
 app = FastAPI(title="Signoff Offline API", version="0.1.0")
 
 from apps.api.live import router as live_router  # noqa: E402
+from apps.api.ui import router as ui_router      # noqa: E402
 
 app.include_router(live_router)
+app.include_router(ui_router)
 
 
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "data_dir": str(DATA_DIR)}
+
+
+@app.get("/sessions")
+def list_sessions() -> dict:
+    """JSON session list backing the UI (AC1)."""
+    root = DATA_DIR / "sessions"
+    out = []
+    if root.exists():
+        for p in sorted(root.iterdir()):
+            if not p.is_dir():
+                continue
+            meta = {}
+            sj = p / "session.json"
+            if sj.exists():
+                meta = json.loads(sj.read_text())
+            analyzed = (p / "analysis.json").exists()
+            out.append({"session_id": p.name,
+                        "notes": meta.get("notes", ""),
+                        "analyzed": analyzed})
+    return {"sessions": out}
 
 
 def _sha256(path: Path) -> str:

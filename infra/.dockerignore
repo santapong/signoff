@@ -1,0 +1,10 @@
+.git
+.venv
+__pycache__
+*.pyc
+datasets
+reports
+docs
+tests
+.pytest_cache
+*.mp4

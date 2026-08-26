@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><head><title>Signoff — Sessions</title>
+<style>
+ body{font-family:system-ui;margin:2rem;background:#fafafa;color:#222}
+ .nav a{margin-right:1rem;font-weight:600}
+ table{border-collapse:collapse;width:100%;margin-top:1rem;background:#fff}
+ th,td{border:1px solid #ddd;padding:.5rem .75rem;text-align:left}
+ th{background:#eee}
+ .badge{padding:.15rem .5rem;border-radius:4px;font-size:.85em}
+ .ok{background:#cfc}.warn{background:#fec}
+</style></head><body>
+{{ nav | safe }}
+<h1>Sessions</h1>
+{% if sessions %}
+<table>
+<tr><th>Session</th><th>Cycles</th><th>Success rate</th><th>Detection F1</th><th>Status</th><th></th></tr>
+{% for s in sessions %}
+<tr>
+ <td><a href="/ui/sessions/{{ s.id }}">{{ s.id }}</a></td>
+ <td>{{ s.cycles if s.cycles is not none else '—' }}</td>
+ <td>{{ '%.0f%%'|format(s.success_rate*100) if s.success_rate is not none else '—' }}</td>
+ <td>{{ s.f1 if s.f1 is not none else '—' }}</td>
+ <td>{% if s.analyzed %}<span class="badge ok">analyzed</span>{% else %}<span class="badge warn">uploaded</span>{% endif %}</td>
+ <td><a href="/ui/sessions/{{ s.id }}">open</a></td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No sessions yet. <a href="/ui/upload">Upload a video</a> to start.</p>
+{% endif %}
+</body></html>

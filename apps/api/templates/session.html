@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html><head><title>Session {{ s.id }}</title>
+<style>
+ body{font-family:system-ui;margin:2rem;background:#fafafa;color:#222}
+ .nav a{margin-right:1rem;font-weight:600}
+ .card{background:#fff;border:1px solid #ddd;padding:1rem;margin:.8rem 0}
+ pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:.85em;
+     background:#f4f4f4;padding:.75rem;border-radius:6px}
+ table{border-collapse:collapse}th,td{border:1px solid #ddd;padding:.35rem .6rem}
+</style></head><body>
+{{ nav | safe }}
+<h1>Session {{ s.id }}</h1>
+<p>
+ Status: {{ 'analyzed' if s.analyzed else 'uploaded (not analyzed)' }}
+ &nbsp;·&nbsp; <a href="/sessions/{{ s.id }}/report">raw report</a>
+</p>
+
+{% if metrics %}
+<div class="card"><h2>Metrics</h2>
+<table>
+<tr><th>Cycles</th><td>{{ metrics.cycle_durations.n }}</td></tr>
+<tr><th>Mean duration</th><td>{{ metrics.cycle_durations.mean_ms }} ms</td></tr>
+<tr><th>p95 duration</th><td>{{ metrics.cycle_durations.p95_ms }} ms</td></tr>
+<tr><th>Success rate</th><td>{{ '%.1f%%'|format(metrics.outcomes.success_rate*100) }}</td></tr>
+<tr><th>Throughput</th><td>{{ metrics.throughput.cycles_per_min }} cycles/min</td></tr>
+<tr><th>Detection F1</th><td>{{ metrics.detection.f1 if metrics.detection.available else 'n/a' }}</td></tr>
+</table>
+</div>
+{% endif %}
+
+{% if hypotheses %}
+<div class="card"><h2>Failure hypotheses (auto — INFERRED)</h2>
+<ul>
+{% for h in hypotheses %}
+<li>Cycle {{ h.cycle_index }}: <b>{{ h.failure_type }}</b>
+    confidence {{ h.confidence }} {% if h.needs_review %}⚠ needs review{% endif %}
+    <br><small>{{ h.evidence }}</small></li>
+{% endfor %}
+</ul>
+<h3>Human review</h3>
+<form method="post" action="/ui/sessions/{{ s.id }}/review">
+ <label>Annotator <input name="annotator" value="reviewer"></label><br>
+ <label>Cycle # <input name="cycle" size="3"></label>
+ <label>Outcome
+  <select name="outcome"><option>OK</option><option>FAILED</option></select></label>
+ <label>Failure type
+  <select name="failure_type">
+   <option>NONE</option><option>GRASP_MISS</option><option>OBJECT_SLIP</option>
+   <option>OBJECT_DROP</option><option>DESTINATION_OCCUPIED</option>
+   <option>INTERRUPTED</option><option>OTHER</option>
+  </select></label>
+ <input type="hidden" name="payload_template" value="1">
+ <button type="submit">Submit correction</button>
+</form>
+<p><small>(API review endpoint accepts full batch corrections:
+POST /sessions/{{ s.id }}/review)</small></p>
+</div>
+{% endif %}
+
+{% if report_md %}
+<div class="card"><h2>Report</h2><pre>{{ report_md }}</pre></div>
+{% endif %}
+</body></html>

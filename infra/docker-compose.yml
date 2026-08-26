@@ -1,0 +1,14 @@
+services:
+  signoff:
+    build: .
+    image: signoff-mvp:latest
+    ports:
+      - "${SIGNOFF_PORT:-8600}:8600"
+    environment:
+      SIGNOFF_DATA_DIR: /data
+    volumes:
+      - signoff-data:/data
+    restart: unless-stopped
+
+volumes:
+  signoff-data:
