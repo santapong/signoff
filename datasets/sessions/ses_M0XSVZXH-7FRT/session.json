@@ -1,0 +1,14 @@
+{
+  "experiment_id": "EXP-CYCLE-001",
+  "camera": {
+    "camera_id": "cam_lab_01",
+    "device_index": 0,
+    "width": 1280,
+    "height": 720,
+    "fps": 30
+  },
+  "session_id": "ses_M0XSVZXH-7FRT",
+  "started_at": "2026-08-26T01:10:05.489890+00:00",
+  "notes": "phase1 smoke",
+  "video_files": []
+}

@@ -1,0 +1,27 @@
+{"event": "SESSION_START", "timestamp_ms": 0.0, "wall_clock": "2026-08-26T01:10:05.490Z"}
+{"cycle": 1, "event": "CYCLE_START", "timestamp_ms": 90.8, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 1, "event": "GRIPPER_CLOSED", "timestamp_ms": 90.9, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 1, "event": "OBJECT_ACQUIRED", "timestamp_ms": 91.0, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 1, "event": "GRIPPER_OPENED", "timestamp_ms": 91.0, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 1, "event": "CYCLE_COMPLETED", "fault": "none", "timestamp_ms": 91.1, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 2, "event": "CYCLE_START", "timestamp_ms": 91.1, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 2, "event": "GRIPPER_CLOSED", "timestamp_ms": 91.1, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 2, "event": "OBJECT_ACQUIRED", "timestamp_ms": 91.2, "wall_clock": "2026-08-26T01:10:05.581Z"}
+{"cycle": 2, "event": "GRIPPER_OPENED", "timestamp_ms": 94.0, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 2, "event": "CYCLE_COMPLETED", "fault": "none", "timestamp_ms": 94.0, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 3, "event": "CYCLE_START", "timestamp_ms": 94.1, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 3, "event": "GRIPPER_CLOSED", "timestamp_ms": 94.1, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 3, "event": "OBJECT_ACQUIRED", "timestamp_ms": 94.2, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 3, "event": "GRIPPER_OPENED", "timestamp_ms": 94.2, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 3, "event": "FAULT_INJECTED", "fault": "interrupt", "timestamp_ms": 94.2, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 4, "event": "CYCLE_START", "timestamp_ms": 94.2, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 4, "event": "GRIPPER_CLOSED", "timestamp_ms": 94.3, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 4, "event": "OBJECT_ACQUIRED", "timestamp_ms": 94.3, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 4, "event": "GRIPPER_OPENED", "timestamp_ms": 94.3, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 4, "event": "CYCLE_COMPLETED", "fault": "none", "timestamp_ms": 94.4, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 5, "event": "CYCLE_START", "timestamp_ms": 94.4, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 5, "event": "GRIPPER_CLOSED", "timestamp_ms": 94.4, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 5, "event": "OBJECT_ACQUIRED", "timestamp_ms": 94.4, "wall_clock": "2026-08-26T01:10:05.584Z"}
+{"cycle": 5, "event": "GRIPPER_OPENED", "timestamp_ms": 94.5, "wall_clock": "2026-08-26T01:10:05.585Z"}
+{"cycle": 5, "event": "CYCLE_COMPLETED", "fault": "none", "timestamp_ms": 94.5, "wall_clock": "2026-08-26T01:10:05.585Z"}
+{"event": "SESSION_END", "timestamp_ms": 94.5, "wall_clock": "2026-08-26T01:10:05.585Z"}

@@ -1,0 +1,5 @@
+{"annotator": "ground_truth_autoseed", "cycle": 1, "cycle_end_ms": 91.1, "cycle_start_ms": 90.8, "failure_type": "NONE", "outcome": "OK", "session": "ses_M0XSVZXH-7FRT"}
+{"annotator": "ground_truth_autoseed", "cycle": 2, "cycle_end_ms": 94.0, "cycle_start_ms": 91.1, "failure_type": "NONE", "outcome": "OK", "session": "ses_M0XSVZXH-7FRT"}
+{"annotator": "ground_truth_autoseed", "cycle": 3, "cycle_end_ms": 1094.1, "cycle_start_ms": 94.1, "failure_type": "OTHER", "outcome": "FAILED", "session": "ses_M0XSVZXH-7FRT"}
+{"annotator": "ground_truth_autoseed", "cycle": 4, "cycle_end_ms": 94.4, "cycle_start_ms": 94.2, "failure_type": "NONE", "outcome": "OK", "session": "ses_M0XSVZXH-7FRT"}
+{"annotator": "ground_truth_autoseed", "cycle": 5, "cycle_end_ms": 94.5, "cycle_start_ms": 94.4, "failure_type": "NONE", "outcome": "OK", "session": "ses_M0XSVZXH-7FRT"}
