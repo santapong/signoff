@@ -31,7 +31,17 @@ class VideoFileSource:
         if not self.cap.isOpened():
             raise RuntimeError(f"cannot open video {self.video_path}")
         index_path = self.video_path.parent / "frame_index.jsonl"
-        self.clock = _load_clock(index_path)
+        entries = _load_clock(index_path)
+        if entries:
+            self.clock = entries
+        else:
+            # linear fallback on the container's declared fps
+            fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
+            if fps <= 0:
+                fps = 30.0
+            def clock(frame_no: int, _fps: float = fps) -> float:
+                return round(frame_no / _fps * 1000.0, 1)
+            self.clock = clock
 
     def frames(self) -> Iterator[Frame]:
         n = 0
@@ -69,18 +79,12 @@ class SyntheticSource:
         pass
 
 
-def _load_clock(index_path: Path):
-    """Return fn(frame_no) -> ms from frame_index.jsonl; linear fallback."""
+def _load_clock(index_path: Path) -> dict[int, float]:
+    """Frame->ms map from frame_index.jsonl; empty when absent."""
     entries: dict[int, float] = {}
     if index_path.exists():
         with index_path.open() as fh:
             for line in fh:
                 rec = json.loads(line)
                 entries[int(rec["frame"])] = float(rec["ms"])
-
-    def clock(frame_no: int) -> float:
-        if frame_no in entries:
-            return entries[frame_no]
-        return float("nan")
-
-    return clock
+    return entries
