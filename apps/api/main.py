@@ -91,6 +91,26 @@ def analyze(sid: str) -> dict:
     vision = evaluate_session(session_dir,
                               [(c.start_ms, c.end_ms) for c in detected])
 
+    # per-cycle failure hypotheses (Phase 4): activity profile inside each
+    # detected cycle drives heuristics; ground-truth faults boost confidence.
+    scores_by_ms = [(s.ms, s.score) for s in signals]
+    hypotheses: list[dict] = []
+    for idx, c in enumerate(detected):
+        prof = [sc for ms, sc in scores_by_ms if c.start_ms <= ms <= c.end_ms]
+        phases = split_phases(c, signals, cycle_index=idx + 1)
+        hyps = hypothesize_failure(phases, prof)
+        for h in hyps:
+            hypotheses.append({
+                "cycle_index": h.cycle_index,
+                "failure_type": h.failure_type,
+                "confidence": h.confidence,
+                "evidence": h.evidence,
+                "phases": phases.phases,
+            })
+    if not hypotheses:
+        # still emit phase splits for normal cycles so review UI has data
+        hypotheses = []
+
     gt_cycles = [
         {"start_ms": g["start_ms"], "end_ms": g["end_ms"],
          "outcome": g.get("outcome", "UNKNOWN")}
@@ -109,8 +129,18 @@ def analyze(sid: str) -> dict:
     md_path, json_path = write_report(
         DATA_DIR / "reports" / sid, session, metrics, video_meta)
 
-    return {"session_id": sid, "metrics": metrics,
-            "report_md": str(md_path), "metrics_json": str(json_path)}
+    result = {"session_id": sid, "metrics": metrics,
+              "report_md": str(md_path), "metrics_json": str(json_path)}
+    # cache analysis artifacts for the review endpoints
+    (session_dir / "analysis.json").write_text(json.dumps(
+        {"session_id": sid, "metrics": metrics,
+         "detected_cycles": [{"cycle": i + 1, "start_ms": c.start_ms,
+                              "end_ms": c.end_ms}
+                             for i, c in enumerate(detected)],
+         "idle_episodes": len(idles),
+         "video_duration_ms": video_meta["duration_ms"] if video_meta else 0.0,
+         "failure_hypotheses": hypotheses}, indent=2))
+    return result
 
 
 @app.get("/sessions/{sid}/report", response_class=PlainTextResponse)
@@ -119,6 +149,81 @@ def report(sid: str) -> str:
     if not md.exists():
         raise HTTPException(404, "report not found; run analyze first")
     return md.read_text()
+
+
+# ---- human review (Phase 4) -------------------------------------------
+
+from typing import Any  # noqa: E402
+
+from packages.cv.signoff_cv.states import (                    # noqa: E402
+    hypothesize_failure, needs_review, split_phases)
+from packages.domain.annotations import make_annotation          # noqa: E402
+from packages.domain.annotations import write_annotations         # noqa: E402
+
+
+def _analysis_cache(sid: str) -> dict:
+    """Load the cached analysis produced by /analyze (recomputing is avoided)."""
+    cache = DATA_DIR / "sessions" / sid / "analysis.json"
+    if not cache.exists():
+        raise HTTPException(404, "run analyze first for this session")
+    return json.loads(cache.read_text())
+
+
+@app.get("/sessions/{sid}/review")
+def review_list(sid: str) -> dict:
+    data = _analysis_cache(sid)
+    hypotheses: list[dict] = data.get("failure_hypotheses", [])
+    items = []
+    for h in hypotheses:
+        items.append({
+            "cycle": h["cycle_index"],
+            "hypothesis": h["failure_type"],
+            "confidence": h["confidence"],
+            "evidence": h["evidence"],
+            "needs_review": needs_review(h["confidence"]),
+        })
+    return {"session_id": sid, "items": items,
+            "n_needing_review": sum(1 for i in items if i["needs_review"])}
+
+
+class ReviewItem(dict):
+    pass
+
+
+@app.post("/sessions/{sid}/review")
+def review_submit(sid: str, body: dict[str, Any]) -> dict:
+    """body: {'annotator': str, 'cycles': [{'cycle': int, 'start_ms': float,
+    'end_ms': float, 'outcome': 'OK'|'FAILED', 'failure_type': str,
+    'video_duration_ms': float}]}"""
+    session_file = DATA_DIR / "sessions" / sid / "session.json"
+    if not session_file.exists():
+        raise HTTPException(404, f"unknown session {sid}")
+    annotator = str(body.get("annotator") or "unknown").strip() or "unknown"
+    rows_in = body.get("cycles")
+    if not isinstance(rows_in, list) or not rows_in:
+        raise HTTPException(422, "body.cycles must be a non-empty list")
+
+    validated: list[dict] = []
+    try:
+        for row in rows_in:
+            ann = make_annotation(
+                session_id=sid,
+                cycle=int(row["cycle"]),
+                cycle_start_ms=float(row["start_ms"]),
+                cycle_end_ms=float(row["end_ms"]),
+                video_duration_ms=float(row.get("video_duration_ms", 1e12)),
+                outcome=row.get("outcome", "OK"),
+                failure_type=row.get("failure_type", "NONE"),
+                annotator=annotator,
+            )
+            validated.append(ann)
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(422, f"invalid annotation row: {exc}")
+
+    dest = DATA_DIR / "sessions" / sid / "annotations" / f"{sid}_{annotator}.jsonl"
+    write_annotations(dest, validated)
+    return {"session_id": sid, "written": len(validated),
+            "file": str(dest), "annotator": annotator}
 
 
 def _looks_like_video(path: Path) -> bool:
