@@ -1,0 +1,1 @@
+{"algorithm": "none (data collection)", "camera_profile": "cam_lab_01", "config": {"backend": "mock"}, "dataset_version": "Signoff-Lab-v0-wip", "experiment_id": "EXP-CYCLE-001", "git_sha": "phase1-rig", "hypothesis": "reference cycles are repeatable enough to label", "primary_metric": "labeled cycle count"}
