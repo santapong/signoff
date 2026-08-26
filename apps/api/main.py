@@ -10,8 +10,8 @@ import os
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -36,6 +36,24 @@ app.include_router(ui_router)
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "data_dir": str(DATA_DIR)}
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    from apps.api.auth import check_request
+    path = request.url.path
+    open_paths = ("/health", "/ui/login", "/docs", "/openapi.json",
+                  "/redoc")
+    if not any(path == p or path.startswith(p + "/")
+               for p in open_paths) and not path.startswith("/live/ws"):
+        try:
+            check_request(request)
+        except HTTPException as exc:
+            if path.startswith("/ui"):
+                return RedirectResponse("/ui/login", status_code=303)
+            return JSONResponse({"detail": exc.detail},
+                                status_code=exc.status_code)
+    return await call_next(request)
 
 
 @app.get("/sessions")
