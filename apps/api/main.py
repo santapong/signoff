@@ -26,6 +26,10 @@ from packages.reporting.signoff_report import write_report            # noqa: E4
 DATA_DIR = Path(os.environ.get("SIGNOFF_DATA_DIR", "datasets"))
 app = FastAPI(title="Signoff Offline API", version="0.1.0")
 
+from apps.api.live import router as live_router  # noqa: E402
+
+app.include_router(live_router)
+
 
 @app.get("/health")
 def health() -> dict:
