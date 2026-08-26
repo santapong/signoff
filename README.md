@@ -57,17 +57,30 @@ docs/                SDD.md, EXPERIMENT_PROTOCOL.md, DATASET_CARD.md, MODEL_CARD
 
 ## Development phases
 
-| Phase | Deliverable |
-|-------|-------------|
-| 0 | ELEXHUB arm bring-up: 50 automated cycles, safe joint limits |
-| 1 | Dataset rig: fixed webcam, ground-truth logger, 100+ labeled cycles |
-| 2 | Signoff offline v0.1: upload → marker/classical detection → cycles → metrics → report |
-| 3 | CV v0.2: detection + tracking, states, failures, human review |
-| 4 | Live monitoring v0.3 (<5 s latency) |
-| 5 | Commercial MVP |
-| 6–7 | External pilot → industrial pilot |
+Status as of 2026-08-26 — all software phases complete on `develop` (83/83 tests).
 
-See [docs/SDD.md](docs/SDD.md) for the full Software Design Document.
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| 0 | ELEXHUB arm bring-up: 50 automated cycles, safe joint limits | **BACKLOG** (hardware-dependent) |
+| 1 | Dataset rig: fixed webcam, ground-truth logger, 100+ labeled cycles | ✅ software done (`feature/phase1-dataset-rig` merged); physical exit (100+ labeled cycles) blocked by Phase 0 |
+| 2 | Signoff offline v0.1: upload → marker/classical detection → cycles → metrics → report | ✅ done |
+| 3 | CV v0.2: detection + tracking, states, failures, human review | ✅ done |
+| 4 | Live monitoring v0.3 (<5 s latency) | ✅ done — verified 1.2 ms worst latency |
+| 5 | Commercial MVP | ✅ done — web UI + Docker image |
+| 6 | Pilot readiness: auth, multi-annotator agreement, backup/restore, feedback, runbook | ✅ done |
+| 7 | External pilot → industrial pilot | ⏳ awaiting pilot customer |
+
+### Backlog
+
+- **Phase 0 arm bring-up** (parked): real `SerialArm` transport for the
+  Arduino Mega + ELEXHUB 6-DOF arm. Blocked on hardware bring-up and the
+  firmware/serial protocol details. Everything else runs without it —
+  upload/review/live flows work on recorded or synthetic video.
+- Physical dataset collection (100+ labeled cycles) after Phase 0 gate.
+- Merge `develop` → `main` release cut when a pilot is signed.
+
+See [docs/SDD.md](docs/SDD.md), [docs/PILOT_RUNBOOK.md](docs/PILOT_RUNBOOK.md),
+and per-phase plans in [docs/plans/](docs/plans/).
 
 ## Tech stack
 
