@@ -33,7 +33,7 @@ def build(out: Path) -> dict:
     subprocess.run(["git", "archive", "--format=zip", "HEAD", "--output", str(source)],
                    cwd=root, check=True)
     with (out / "wheel-build.log").open("w") as log:
-        subprocess.run(["uv", "build", "--wheel", "--offline", "--no-build-isolation",
+        subprocess.run(["uv", "build", "--wheel", "--offline",
                         "--python", sys.executable, "--out-dir", str(out)], cwd=root,
                        stdout=log, stderr=subprocess.STDOUT, check=True)
     wheels = list(out.glob("*.whl"))
