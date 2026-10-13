@@ -6,6 +6,7 @@ Generated frames prove software contracts, never physical robot accuracy.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -421,3 +422,24 @@ def test_interrupted_capture_closes_open_segment_without_losing_prior_evidence(t
     result = analyze_video(archive.manifest_path, profile())
     assert "RECORDING_INTERRUPTED" in result["quality_flags"]
     assert result["coverage"]["unknown_ms"] == 1000
+
+
+def test_scripted_demo_detects_independent_schedule_without_physical_claim(tmp_path):
+    from tools.generate_demo import generate_demo
+
+    demo = generate_demo(tmp_path, cycles=3, lossless=True)
+    station = json.loads(Path(demo["profile"]).read_text())
+    reference = [json.loads(line) for line in Path(demo["reference"]).read_text().splitlines()]
+    manifest = json.loads((tmp_path / "dataset.manifest.json").read_text())
+    result = analyze_video(Path(demo["video"]), station)
+    assert result["completed_cycles"] == len(reference) == 3
+    for expected, actual in zip(reference, result["detected_cycles"]):
+        assert actual["start_ms"] == pytest.approx(expected["cycle_start_ms"], abs=1)
+        assert actual["end_ms"] == pytest.approx(expected["cycle_end_ms"], abs=1)
+    lossless_result = analyze_video(Path(demo["lossless_manifest"]), station)
+    assert lossless_result["completed_cycles"] == 3
+    assert manifest["source_kind"] == demo["source_kind"] == "simulation"
+    assert manifest["physically_qualified"] is demo["physically_qualified"] is False
+    assert not manifest["capture_attested_by"]
+    assert manifest["annotator_kinds"] == {"scripted_sequence": "script"}
+    assert all(row["basis"] == "GENERATION_SCHEDULE" for row in reference)
