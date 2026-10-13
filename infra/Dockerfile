@@ -16,7 +16,7 @@ COPY services ./services
 COPY robotics ./robotics
 COPY tools ./tools
 
-ARG SIGNOFF_GIT_SHA=unknown
+ARG SIGNOFF_GIT_SHA=
 ENV SIGNOFF_GIT_SHA=${SIGNOFF_GIT_SHA}
 
 ENV SIGNOFF_DATA_DIR=/data

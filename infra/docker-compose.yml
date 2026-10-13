@@ -4,8 +4,8 @@ services:
       context: ..
       dockerfile: infra/Dockerfile
       args:
-        SIGNOFF_GIT_SHA: ${SIGNOFF_GIT_SHA:-unknown}
-    image: signoff-camera:0.2.0-rc1
+        SIGNOFF_GIT_SHA: ${SIGNOFF_GIT_SHA:-}
+    image: signoff-camera:0.3.0-rc.1
     ports:
       - "127.0.0.1:${SIGNOFF_PORT:-8600}:8600"
     environment:
