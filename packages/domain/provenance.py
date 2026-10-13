@@ -16,8 +16,14 @@ def source_code_sha() -> str | None:
             raise ValueError("SIGNOFF_GIT_SHA must identify a complete source commit")
         return configured.lower()
     try:
+        source_root = Path(__file__).resolve().parents[2]
+        checkout = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], cwd=source_root,
+            text=True, stderr=subprocess.DEVNULL, timeout=5).strip()
+        if Path(checkout).resolve() != source_root:
+            return None
         result = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[2],
+            ["git", "rev-parse", "HEAD"], cwd=source_root,
             text=True, stderr=subprocess.DEVNULL, timeout=5).strip().lower()
     except (OSError, subprocess.SubprocessError):
         return None

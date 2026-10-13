@@ -161,10 +161,16 @@ class JobStore:
 
     def enqueue(self, session: dict, profile: dict | None = None) -> dict:
         with self.lock:
-            if self.pending.full():
-                raise ValueError("analysis queue is full; try after a job finishes")
             sid = session["session_id"]
             reviews, revision = latest_reviews(self.root / "sessions" / sid)
+            for active in self.session_runs(sid):
+                if (active["state"] in {"queued", "running"}
+                        and active["session"].get("video_sha256") == session.get("video_sha256")
+                        and active.get("profile") == profile
+                        and active.get("annotation_revision") == revision):
+                    return active
+            if self.pending.full():
+                raise ValueError("analysis queue is full; try after a job finishes")
             run_id = make_id("run")
             item = {
                 "schema_version": 2,
@@ -184,6 +190,15 @@ class JobStore:
             self.pending.put_nowait(run_id)
             self.start()
             return item
+
+    def session_runs(self, session_id: str) -> list[dict]:
+        """Recover durable job state for a session without exposing other sources."""
+        rows = []
+        for path in (self.root / "runs").glob("*/run.json"):
+            item = json.loads(path.read_text())
+            if item.get("session_id") == session_id:
+                rows.append(item)
+        return sorted(rows, key=lambda item: item.get("created_at", ""), reverse=True)
 
     def get(self, run_id: str) -> dict:
         path = self.root / "runs" / run_id / "run.json"
@@ -254,6 +269,8 @@ class JobStore:
                     "python": platform.python_version(),
                 },
                 "source_sha256": session["video_sha256"],
+                "source_kind": session.get("source_kind", "unknown"),
+                "capture_attested_by": session.get("capture_attested_by", ""),
                 "source_files": source_files,
                 "profile": item["profile"],
                 "qualification": "unqualified_software_run",

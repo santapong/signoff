@@ -1,5 +1,13 @@
 # Signoff current milestone status
 
+## Evidence Workbench continuation on 14 October 2026
+
+The owner selected the Evidence Workbench direction and authorized the v0.3 program under [issue #3](https://github.com/santapong/signoff/issues/3). G0–G5 software is implemented: visual stations and explicit preview/capture, session job recovery and review, original-frame references, structured qualification and exact owner evidence bindings. The v0.3.0-rc.1 candidate is for rehearsal and commissioning.
+
+The integrated local suite passed 266 tests, followed by nine affected regressions (four new unique cases). Browser checks exercised simulation upload/review, original-frame navigation, visual profile controls and synthetic recording preservation. Final package/CI receipts remain separate from these source checks. G6 actual station qualification, real USB test, two-hour soak, owner acceptance and main release approval remain pending. See [v0.3 release notes](RELEASE_v0.3.0-rc.1.md).
+
+## Historical v0.2 candidate checkpoint
+
 Checked 13 October 2026. Implementation is on `feat/camera-program-v02`, tracked by [issue 1](https://github.com/santapong/signoff/issues/1). The v0.2.0-rc1 software candidate is built from the camera-first program.
 
 | Milestone | Software state | Required external evidence |
