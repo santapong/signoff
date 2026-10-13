@@ -1,281 +1,490 @@
-"""Signoff offline API v0.1: upload -> analyze -> report (synchronous).
+"""Camera measurement API: immutable profiles, durable runs and review evidence."""
 
-Run: uvicorn apps.api.main:app --port 8600
-"""
 from __future__ import annotations
 
-import hashlib
 import json
+import math
 import os
-import sys
+import re
+import secrets
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from packages.cv.signoff_cv.evaluate import evaluate_session          # noqa: E402
-from packages.cv.signoff_cv.motion import MotionDetector              # noqa: E402
-from packages.cv.signoff_cv.segmenter import detect_idle, segment_cycles  # noqa: E402
-from packages.cv.signoff_cv.source import VideoFileSource             # noqa: E402
-from packages.domain.ids import make_id                                # noqa: E402
-from packages.metrics.signoff_metrics import session_metrics          # noqa: E402
-from packages.reporting.signoff_report import write_report            # noqa: E402
+from packages.domain.ids import make_id
+from services.analysis_worker.jobs import (
+    JobStore,
+    atomic_json,
+    latest_reviews,
+    sha256,
+    utcnow,
+    verified_hash,
+)
 
 DATA_DIR = Path(os.environ.get("SIGNOFF_DATA_DIR", "datasets"))
-app = FastAPI(title="Signoff Offline API", version="0.1.0")
-
-from apps.api.live import router as live_router  # noqa: E402
-from apps.api.ui import router as ui_router      # noqa: E402
-
-app.include_router(live_router)
-app.include_router(ui_router)
+_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_stores: dict[str, JobStore] = {}
+_store_lock = threading.Lock()
+_review_lock = threading.Lock()
 
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "data_dir": str(DATA_DIR)}
+def identifier(value: str) -> str:
+    if not isinstance(value, str) or not _ID.fullmatch(value):
+        raise HTTPException(422, "invalid identifier")
+    return value
+
+
+def session_path(sid: str) -> Path:
+    path = DATA_DIR / "sessions" / identifier(sid)
+    if (
+        not (path / "session.json").is_file()
+        or path.is_symlink()
+        or not path.resolve().is_relative_to(DATA_DIR.resolve())
+    ):
+        raise HTTPException(404, "unknown session")
+    return path
+
+
+def session_info(sid: str) -> dict:
+    root = session_path(sid)
+    result = json.loads((root / "session.json").read_text())
+    revisions = sorted((root / "experiment-revisions").glob("*.json"))
+    if revisions:
+        result.update(json.loads(revisions[-1].read_text()))
+    return result
+
+
+def jobs() -> JobStore:
+    key = str(DATA_DIR.resolve())
+    with _store_lock:
+        if key not in _stores:
+            _stores[key] = JobStore(DATA_DIR)
+        return _stores[key]
+
+
+def profiles():
+    from packages.domain.profiles import ProfileStore
+
+    return ProfileStore(DATA_DIR / "profiles")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    store = jobs()
+    store.start()
+    yield
+    from apps.api.live import _stop_engine
+
+    _stop_engine()
+    store.stop()
+
+
+app = FastAPI(title="Signoff Camera Measurement API", version="0.2.0", lifespan=lifespan)
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    from apps.api.auth import check_request
+    from apps.api.auth import check_csrf, check_request
+
     path = request.url.path
-    open_paths = ("/health", "/ui/login", "/docs", "/openapi.json",
-                  "/redoc")
-    if not any(path == p or path.startswith(p + "/")
-               for p in open_paths) and not path.startswith("/live/ws"):
+    open_paths = {"/health", "/ui/login", "/docs", "/openapi.json", "/redoc"}
+    if path not in open_paths:
         try:
             check_request(request)
+            if request.method not in {"GET", "HEAD", "OPTIONS"}:
+                csrf = request.headers.get("x-csrf-token")
+                check_csrf(request, csrf)
         except HTTPException as exc:
-            if path.startswith("/ui"):
+            if exc.status_code == 401 and path.startswith("/ui"):
                 return RedirectResponse("/ui/login", status_code=303)
-            return JSONResponse({"detail": exc.detail},
-                                status_code=exc.status_code)
-    return await call_next(request)
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    response = await call_next(request)
+    if path.startswith("/ui") and not request.cookies.get("signoff_csrf"):
+        response.set_cookie(
+            "signoff_csrf",
+            secrets.token_urlsafe(24),
+            samesite="strict",
+            secure=request.url.scheme == "https",
+        )
+    return response
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok", "version": "0.2.0", "data_dir": str(DATA_DIR)}
+
+
+@app.get("/profiles")
+def list_profiles() -> dict:
+    return {"profiles": profiles().list()}
+
+
+@app.post("/profiles", status_code=201)
+def put_profile(body: dict = Body(...)) -> dict:
+    try:
+        return profiles().put(body)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/profiles/{profile_id}")
+def get_profile(profile_id: str, revision: int | None = None) -> dict:
+    try:
+        return profiles().get(identifier(profile_id), revision)
+    except (FileNotFoundError, KeyError) as exc:
+        raise HTTPException(404, "profile revision not found") from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/sessions")
 def list_sessions() -> dict:
-    """JSON session list backing the UI (AC1)."""
     root = DATA_DIR / "sessions"
     out = []
     if root.exists():
-        for p in sorted(root.iterdir()):
-            if not p.is_dir():
+        for path in sorted(root.iterdir()):
+            if (
+                not _ID.fullmatch(path.name)
+                or path.is_symlink()
+                or not (path / "session.json").is_file()
+            ):
                 continue
-            meta = {}
-            sj = p / "session.json"
-            if sj.exists():
-                meta = json.loads(sj.read_text())
-            analyzed = (p / "analysis.json").exists()
-            out.append({"session_id": p.name,
-                        "notes": meta.get("notes", ""),
-                        "analyzed": analyzed})
+            item = json.loads((path / "session.json").read_text())
+            item["analyzed"] = (path / "latest_run.json").exists()
+            out.append(item)
     return {"sessions": out}
-
-
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-@app.post("/sessions/upload")
-async def upload(video: UploadFile = File(...), notes: str = "") -> dict:
-    sid = make_id("ses")
-    session_dir = DATA_DIR / "sessions" / sid
-    video_dir = session_dir / "video"
-    video_dir.mkdir(parents=True, exist_ok=True)
-
-    dest = video_dir / (Path(video.filename or "upload.mp4").name or "upload.mp4")
-    with dest.open("wb") as fh:
-        while chunk := await video.read(1 << 20):
-            fh.write(chunk)
-
-    if not _looks_like_video(dest):
-        dest.unlink(missing_ok=True)
-        raise HTTPException(415, "uploaded file is not a readable video")
-
-    session = {
-        "session_id": sid,
-        "experiment_id": "EXP-UPLOAD",
-        "video_file": dest.name,
-        "video_sha256": _sha256(dest),
-        "notes": notes,
-        "source": "upload",
-    }
-    (session_dir / "session.json").write_text(json.dumps(session, indent=2))
-    return {"session_id": sid, "file": dest.name,
-            "sha256": session["video_sha256"]}
-
-
-@app.post("/sessions/{sid}/analyze")
-def analyze(sid: str) -> dict:
-    session_dir = DATA_DIR / "sessions" / sid
-    session_file = session_dir / "session.json"
-    if not session_file.exists():
-        raise HTTPException(404, f"unknown session {sid}")
-    session = json.loads(session_file.read_text())
-
-    videos = sorted((session_dir / "video").glob("*.mp4"))
-    if not videos:
-        raise HTTPException(422, "session has no mp4 video")
-
-    src = VideoFileSource(videos[0])
-    det = MotionDetector()
-    signals = [det.process(f) for f in src.frames()]
-    src.close()
-
-    detected = segment_cycles(signals)
-    idles = detect_idle(signals)
-    vision = evaluate_session(session_dir,
-                              [(c.start_ms, c.end_ms) for c in detected])
-
-    # per-cycle failure hypotheses (Phase 4): activity profile inside each
-    # detected cycle drives heuristics; ground-truth faults boost confidence.
-    scores_by_ms = [(s.ms, s.score) for s in signals]
-    hypotheses: list[dict] = []
-    for idx, c in enumerate(detected):
-        prof = [sc for ms, sc in scores_by_ms if c.start_ms <= ms <= c.end_ms]
-        phases = split_phases(c, signals, cycle_index=idx + 1)
-        hyps = hypothesize_failure(phases, prof)
-        for h in hyps:
-            hypotheses.append({
-                "cycle_index": h.cycle_index,
-                "failure_type": h.failure_type,
-                "confidence": h.confidence,
-                "evidence": h.evidence,
-                "phases": phases.phases,
-            })
-    if not hypotheses:
-        # still emit phase splits for normal cycles so review UI has data
-        hypotheses = []
-
-    gt_cycles = [
-        {"start_ms": g["start_ms"], "end_ms": g["end_ms"],
-         "outcome": g.get("outcome", "UNKNOWN")}
-        for g in vision.pop("ground_truth_detail", [])
-    ]
-    metrics = session_metrics(
-        gt_cycles,
-        [{"start_ms": c.start_ms, "end_ms": c.end_ms} for c in detected],
-        [{"start_ms": i.start_ms, "end_ms": i.end_ms} for i in idles],
-        vision_report=vision,
-    )
-
-    meta_path = videos[0].with_suffix(".meta.json")
-    video_meta = json.loads(meta_path.read_text()) if meta_path.exists() else None
-
-    md_path, json_path = write_report(
-        DATA_DIR / "reports" / sid, session, metrics, video_meta)
-
-    result = {"session_id": sid, "metrics": metrics,
-              "report_md": str(md_path), "metrics_json": str(json_path)}
-    # cache analysis artifacts for the review endpoints
-    (session_dir / "analysis.json").write_text(json.dumps(
-        {"session_id": sid, "metrics": metrics,
-         "detected_cycles": [{"cycle": i + 1, "start_ms": c.start_ms,
-                              "end_ms": c.end_ms}
-                             for i, c in enumerate(detected)],
-         "idle_episodes": len(idles),
-         "video_duration_ms": video_meta["duration_ms"] if video_meta else 0.0,
-         "failure_hypotheses": hypotheses}, indent=2))
-    return result
-
-
-@app.get("/sessions/{sid}/report", response_class=PlainTextResponse)
-def report(sid: str) -> str:
-    md = DATA_DIR / "reports" / sid / "report.md"
-    if not md.exists():
-        raise HTTPException(404, "report not found; run analyze first")
-    return md.read_text()
-
-
-# ---- human review (Phase 4) -------------------------------------------
-
-from typing import Any  # noqa: E402
-
-from packages.cv.signoff_cv.states import (                    # noqa: E402
-    hypothesize_failure, needs_review, split_phases)
-from packages.domain.annotations import make_annotation          # noqa: E402
-from packages.domain.annotations import write_annotations         # noqa: E402
-
-
-def _analysis_cache(sid: str) -> dict:
-    """Load the cached analysis produced by /analyze (recomputing is avoided)."""
-    cache = DATA_DIR / "sessions" / sid / "analysis.json"
-    if not cache.exists():
-        raise HTTPException(404, "run analyze first for this session")
-    return json.loads(cache.read_text())
-
-
-@app.get("/sessions/{sid}/review")
-def review_list(sid: str) -> dict:
-    data = _analysis_cache(sid)
-    hypotheses: list[dict] = data.get("failure_hypotheses", [])
-    items = []
-    for h in hypotheses:
-        items.append({
-            "cycle": h["cycle_index"],
-            "hypothesis": h["failure_type"],
-            "confidence": h["confidence"],
-            "evidence": h["evidence"],
-            "needs_review": needs_review(h["confidence"]),
-        })
-    return {"session_id": sid, "items": items,
-            "n_needing_review": sum(1 for i in items if i["needs_review"])}
-
-
-class ReviewItem(dict):
-    pass
-
-
-@app.post("/sessions/{sid}/review")
-def review_submit(sid: str, body: dict[str, Any]) -> dict:
-    """body: {'annotator': str, 'cycles': [{'cycle': int, 'start_ms': float,
-    'end_ms': float, 'outcome': 'OK'|'FAILED', 'failure_type': str,
-    'video_duration_ms': float}]}"""
-    session_file = DATA_DIR / "sessions" / sid / "session.json"
-    if not session_file.exists():
-        raise HTTPException(404, f"unknown session {sid}")
-    annotator = str(body.get("annotator") or "unknown").strip() or "unknown"
-    rows_in = body.get("cycles")
-    if not isinstance(rows_in, list) or not rows_in:
-        raise HTTPException(422, "body.cycles must be a non-empty list")
-
-    validated: list[dict] = []
-    try:
-        for row in rows_in:
-            ann = make_annotation(
-                session_id=sid,
-                cycle=int(row["cycle"]),
-                cycle_start_ms=float(row["start_ms"]),
-                cycle_end_ms=float(row["end_ms"]),
-                video_duration_ms=float(row.get("video_duration_ms", 1e12)),
-                outcome=row.get("outcome", "OK"),
-                failure_type=row.get("failure_type", "NONE"),
-                annotator=annotator,
-            )
-            validated.append(ann)
-    except (KeyError, ValueError) as exc:
-        raise HTTPException(422, f"invalid annotation row: {exc}")
-
-    dest = DATA_DIR / "sessions" / sid / "annotations" / f"{sid}_{annotator}.jsonl"
-    write_annotations(dest, validated)
-    return {"session_id": sid, "written": len(validated),
-            "file": str(dest), "annotator": annotator}
 
 
 def _looks_like_video(path: Path) -> bool:
     try:
         import cv2
+
         cap = cv2.VideoCapture(str(path))
-        ok = cap.isOpened()
-        cap.release()
-        return ok
+        try:
+            ok, _ = cap.read()
+            return bool(cap.isOpened() and ok)
+        finally:
+            cap.release()
     except Exception:
         return False
+
+
+@app.post("/sessions/upload", status_code=201)
+async def upload(
+    video: UploadFile = File(...),
+    notes: str = Form(""),
+    profile_id: str | None = Form(None),
+    profile_revision: int | None = Form(None),
+    experiment_id: str = Form("EXP-UPLOAD"),
+    controller_label: str = Form("unspecified"),
+    policy_label: str = Form("unspecified"),
+    protocol_id: str = Form("camera-v2-unqualified"),
+) -> dict:
+    suffix = Path(video.filename or "").suffix.lower()
+    if suffix not in {".mp4", ".mkv"}:
+        raise HTTPException(415, "supported media extensions are MP4 and MKV")
+    labels = experiment_labels(
+        {
+            "experiment_id": experiment_id,
+            "controller_label": controller_label,
+            "policy_label": policy_label,
+            "protocol_id": protocol_id,
+        }
+    )
+    profile = get_profile(profile_id, profile_revision) if profile_id else None
+    sid = make_id("ses")
+    session_dir = DATA_DIR / "sessions" / sid
+    video_dir = session_dir / "video"
+    video_dir.mkdir(parents=True)
+    dest = video_dir / f"source{suffix}"
+    size = 0
+    max_bytes = int(os.environ.get("SIGNOFF_UPLOAD_MAX_BYTES", str(2 * 1024**3)))
+    try:
+        with dest.open("xb") as handle:
+            while chunk := await video.read(1 << 20):
+                size += len(chunk)
+                if size > max_bytes:
+                    raise HTTPException(413, "upload exceeds configured size limit")
+                handle.write(chunk)
+        if not _looks_like_video(dest):
+            raise HTTPException(415, "uploaded file is not a readable video")
+    except Exception:
+        dest.unlink(missing_ok=True)
+        raise
+    session = {
+        "schema_version": 2,
+        "session_id": sid,
+        **labels,
+        "video_file": dest.name,
+        "video_sha256": sha256(dest),
+        "notes": notes,
+        "source": "recorded_upload",
+        "created_at": utcnow(),
+        "profile_id": profile.get("profile_id", profile.get("id")) if profile else None,
+        "profile_revision": profile.get("revision") if profile else None,
+        "profile": profile,
+        "qualification": "unqualified",
+    }
+    atomic_json(session_dir / "session.json", session)
+    return {**session, "file": dest.name, "sha256": session["video_sha256"]}
+
+
+def experiment_labels(body: dict) -> dict:
+    labels = {}
+    for key in ("experiment_id", "controller_label", "policy_label", "protocol_id"):
+        value = body.get(key)
+        if not isinstance(value, str) or not 1 <= len(value.strip()) <= 120:
+            raise HTTPException(422, f"{key} must contain 1–120 characters")
+        labels[key] = value.strip()
+    identifier(labels["experiment_id"])
+    identifier(labels["protocol_id"])
+    return labels
+
+
+@app.post("/sessions/{sid}/experiment", status_code=201)
+def bind_experiment(sid: str, body: dict) -> dict:
+    root = session_path(sid)
+    labels = experiment_labels(body)
+    revision = make_id("expmeta")
+    value = {
+        **labels,
+        "experiment_metadata_revision": revision,
+        "experiment_metadata_created_at": utcnow(),
+    }
+    atomic_json(root / "experiment-revisions" / f"{revision}.json", value)
+    return value
+
+
+@app.get("/sessions/{sid}/experiment")
+def get_experiment(sid: str) -> dict:
+    item = session_info(sid)
+    return {
+        key: item.get(key)
+        for key in (
+            "experiment_id",
+            "controller_label",
+            "policy_label",
+            "protocol_id",
+            "experiment_metadata_revision",
+        )
+    }
+
+
+@app.post("/sessions/{sid}/analyze", status_code=202)
+def analyze(sid: str, body: dict | None = Body(None)) -> dict:
+    session = session_info(sid)
+    if session.get("recording_state") == "running":
+        raise HTTPException(409, "stop capture before immutable analysis")
+    if not session.get("video_file"):
+        raise HTTPException(422, "session has no recorded video")
+    body = body or {}
+    profile = session.get("profile")
+    if body.get("profile_id"):
+        profile = get_profile(body["profile_id"], body.get("profile_revision"))
+    elif body.get("profile_revision") is not None:
+        raise HTTPException(422, "profile_revision requires profile_id")
+    try:
+        item = jobs().enqueue(session, profile)
+    except ValueError as exc:
+        raise HTTPException(429, str(exc)) from exc
+    return {
+        key: item[key] for key in ("schema_version", "run_id", "session_id", "state", "status_url")
+    }
+
+
+@app.get("/runs/{run_id}")
+def run_status(run_id: str) -> dict:
+    try:
+        item = jobs().get(identifier(run_id))
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "run not found") from exc
+    return {
+        key: value
+        for key, value in item.items()
+        if key not in {"session", "profile", "reviewed_cycles"}
+    }
+
+
+@app.get("/runs/{run_id}/artifacts/{name}")
+def run_artifact(run_id: str, name: str):
+    try:
+        path = jobs().artifact(identifier(run_id), name)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "artifact not found") from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    media_type = {
+        ".html": "text/html",
+        ".json": "application/json",
+        ".csv": "text/csv",
+        ".md": "text/markdown",
+        ".mp4": "video/mp4",
+    }.get(path.suffix)
+    return FileResponse(path, media_type=media_type)
+
+
+def latest_run(sid: str) -> str | None:
+    path = session_path(sid) / "latest_run.json"
+    return json.loads(path.read_text())["run_id"] if path.exists() else None
+
+
+def _analysis_cache(sid: str) -> dict:
+    run_id = latest_run(sid)
+    if run_id:
+        try:
+            return json.loads(jobs().artifact(run_id, "analysis.json").read_text())
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    path = session_path(sid) / "analysis.json"
+    if path.is_file():
+        return {**json.loads(path.read_text()), "legacy": True}
+    raise HTTPException(404, "run analyze first")
+
+
+@app.get("/sessions/{sid}/report", response_class=PlainTextResponse)
+def report(sid: str, run_id: str | None = None) -> str:
+    selected = run_id or latest_run(sid)
+    if selected:
+        if run_status(identifier(selected))["session_id"] != sid:
+            raise HTTPException(404, "run does not belong to session")
+        try:
+            return jobs().artifact(selected, "report.md").read_text()
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    path = DATA_DIR / "reports" / identifier(sid) / "report.md"
+    if not path.is_file():
+        raise HTTPException(404, "report not found; run analyze first")
+    return path.read_text()
+
+
+@app.get("/sessions/{sid}/evidence")
+def evidence(sid: str):
+    item = session_info(sid)
+    name = item.get("video_file")
+    if not name or Path(name).name != name or Path(name).suffix not in {".mp4", ".mkv"}:
+        raise HTTPException(404, "playable session video unavailable")
+    path = session_path(sid) / "video" / name
+    if path.is_symlink() or not path.is_file() or verified_hash(path) != item["video_sha256"]:
+        raise HTTPException(409, "source evidence integrity check failed")
+    return FileResponse(
+        path, media_type="video/mp4" if path.suffix == ".mp4" else "video/x-matroska"
+    )
+
+
+@app.get("/sessions/{sid}/review")
+def review_list(sid: str) -> dict:
+    analysis = _analysis_cache(sid)
+    rows, revision = latest_reviews(session_path(sid))
+    ids = {cycle.get("cycle_id") for cycle in analysis.get("detected_cycles", [])}
+    by_cycle = {
+        row["cycle"]: row for row in rows if row.get("cycle_id") in ids or not row.get("cycle_id")
+    }
+    items = [
+        {
+            **cycle,
+            "review": by_cycle.get(cycle["cycle"]),
+            "needs_review": cycle["cycle"] not in by_cycle,
+        }
+        for cycle in analysis.get("detected_cycles", [])
+    ]
+    return {
+        "session_id": sid,
+        "run_id": analysis.get("run_id"),
+        "items": items,
+        "revision_id": revision,
+        "n_needing_review": sum(item["needs_review"] for item in items),
+    }
+
+
+@app.post("/sessions/{sid}/review")
+def review_submit(sid: str, body: dict[str, Any]) -> dict:
+    sdir = session_path(sid)
+    analysis = _analysis_cache(sid)
+    if body.get("run_id") and body["run_id"] != analysis.get("run_id"):
+        raise HTTPException(409, "review run is no longer the selected session run")
+    annotator = identifier(body.get("annotator", "reviewer"))
+    rows = body.get("cycles")
+    if not isinstance(rows, list) or not rows:
+        raise HTTPException(422, "cycles must be a non-empty list")
+    detected = {row["cycle"]: row for row in analysis.get("detected_cycles", [])}
+    validated = []
+    for row in rows:
+        try:
+            if isinstance(row["cycle"], bool):
+                raise ValueError("cycle must be a positive integer")
+            cycle = int(row["cycle"])
+            start, end = float(row["start_ms"]), float(row["end_ms"])
+            outcome = row.get("outcome", "UNKNOWN")
+            failure = row.get("failure_type", "NONE")
+            if float(row["cycle"]) != cycle:
+                raise ValueError("cycle must be an integer")
+            if cycle not in detected:
+                raise ValueError("cycle is not present in the selected run")
+            if not all(math.isfinite(value) for value in (start, end)) or not 0 <= start < end:
+                raise ValueError("cycle boundaries must be finite and ordered")
+            if end > analysis["video_duration_ms"] + 1:
+                raise ValueError("cycle end exceeds observed duration")
+            if outcome not in {"OK", "FAILED", "UNKNOWN"}:
+                raise ValueError("outcome must be OK, FAILED or UNKNOWN")
+            if failure not in {
+                "NONE",
+                "GRASP_MISS",
+                "OBJECT_SLIP",
+                "OBJECT_DROP",
+                "DESTINATION_OCCUPIED",
+                "INTERRUPTED",
+                "OTHER",
+            }:
+                raise ValueError("unknown failure type")
+            if outcome == "FAILED" and failure == "NONE":
+                raise ValueError("FAILED outcome requires a failure type")
+            validated.append(
+                {
+                    "cycle": cycle,
+                    "start_ms": start,
+                    "end_ms": end,
+                    "cycle_start_ms": start,
+                    "cycle_end_ms": end,
+                    "outcome": outcome,
+                    "failure_type": failure,
+                    "annotator": annotator,
+                    "session": sid,
+                    "detected_cycle_id": detected[cycle].get("cycle_id"),
+                    "cycle_id": detected[cycle].get("cycle_id"),
+                }
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+    with _review_lock:
+        revision = make_id("rev")
+        path = sdir / "reviews" / f"{revision}.json"
+        item = {
+            "schema_version": 2,
+            "revision_id": revision,
+            "created_at": utcnow(),
+            "run_id": analysis.get("run_id"),
+            "annotator": annotator,
+            "cycles": validated,
+        }
+        if path.exists():
+            raise HTTPException(409, "review revision collision; retry request")
+        atomic_json(path, item)
+    return {
+        "session_id": sid,
+        "written": len(validated),
+        "revision_id": revision,
+        "file": str(path),
+        "annotator": annotator,
+        "report_update": "create a new analysis run to freeze this review revision",
+    }
+
+
+from apps.api.live import router as live_router  # noqa: E402
+from apps.api.ui import router as ui_router  # noqa: E402
+
+app.include_router(live_router)
+app.include_router(ui_router)
