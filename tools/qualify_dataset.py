@@ -32,9 +32,8 @@ def _path(root: Path, relative: str) -> Path:
 
 
 def evaluate_dataset(manifest_path: Path, data_root: Path | None = None) -> dict:
-    from packages.cv.signoff_cv.pipeline import analyze_video
-
     from packages.cv.signoff_cv.evaluate import evaluate_cycles
+    from packages.cv.signoff_cv.pipeline import analyze_video
     from packages.domain.profiles import validate_identifier, validate_profile
 
     manifest_path = Path(manifest_path)

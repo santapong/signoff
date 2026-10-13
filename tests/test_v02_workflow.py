@@ -103,6 +103,9 @@ def test_upload_run_review_exports_are_frozen_and_evidence_resolves(env, suffix)
     assert analysis["metrics"]["detection"]["available"] is False
     evidence_url = analysis["detected_cycles"][0]["evidence"]["url"]
     assert client.get(evidence_url).headers["content-type"].startswith("video/mp4")
+    frozen_report = client.get(run["artifacts"]["report.json"]).json()
+    assert frozen_report["detected_cycles"][0]["evidence_url"] == evidence_url
+    assert evidence_url in client.get(run["artifacts"]["report.html"]).text
     old_report = client.get(run["artifacts"]["report.json"]).content
     row = {"cycle": 1, "start_ms": 500, "end_ms": 1500, "outcome": "OK"}
     first = client.post(f"/sessions/{sid}/review", json={"annotator": "owner", "cycles": [row]})

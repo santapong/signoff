@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
     store.stop()
 
 
-app = FastAPI(title="Signoff Camera Measurement API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Signoff Camera Measurement API", version="0.2.0-rc1", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -115,7 +115,7 @@ async def auth_middleware(request: Request, call_next):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "version": "0.2.0", "data_dir": str(DATA_DIR)}
+    return {"status": "ok", "version": "0.2.0-rc1", "data_dir": str(DATA_DIR)}
 
 
 @app.get("/profiles")

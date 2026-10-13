@@ -186,9 +186,7 @@ def detection_quality(report: dict | None) -> dict:
     keys = ("true_positives", "false_positives", "false_negatives", "precision", "recall", "f1",
             "matcher", "tolerance_ms", "timing_errors", "count_error", "uncertainty",
             "reference_id", "reference_revision", "reason", "matches")
-    available = report.get("available", True)
-    if report.get("ground_truth_cycles") == 0 and not report.get("reference_id"):
-        available = False
+    available = bool(report.get("available", True) and report.get("reference_id"))
     values = {key: report.get(key) for key in keys if key in report}
     if not available:
         values.update({key: None for key in ("precision", "recall", "f1")})

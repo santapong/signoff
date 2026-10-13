@@ -432,3 +432,4 @@ def add_evidence_clips(staging: Path, media: Path, cycles: list[dict], run_id: s
             "source_end_ms": end,
             "clip_start_ms": 0,
         }
+        cycle["evidence_url"] = cycle["evidence"]["url"]

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 from pathlib import Path
 
@@ -257,7 +259,8 @@ def owner_acceptance(sid: str, payload: dict = Body(...)):
     if run_status(run_id)["session_id"] != sid:
         raise HTTPException(422, "run does not belong to session")
     try:
-        report = json.loads(jobs().artifact(run_id, "report.json").read_text())
+        report_path = jobs().artifact(run_id, "report.json")
+        report = json.loads(report_path.read_text())
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     from packages.domain.ids import make_id
@@ -272,9 +275,16 @@ def owner_acceptance(sid: str, payload: dict = Body(...)):
         "reason": reason,
         "run_id": run_id,
         "report_hash": report["report_hash"],
+        "report_sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
         "created_at": utcnow(),
         "qualification_claim": "owner workflow acceptance; physical accuracy remains separate",
     }
+    for field in ("qualification_sha256", "manifest_sha256"):
+        value = payload.get(field)
+        if value is not None:
+            if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value):
+                raise HTTPException(422, f"{field} must be a SHA-256 digest")
+            acceptance[field] = value
     atomic_json(
         session_path(sid) / "acceptance" / f"{acceptance['acceptance_id']}.json", acceptance
     )

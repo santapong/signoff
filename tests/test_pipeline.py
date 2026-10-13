@@ -39,7 +39,7 @@ class TestMetrics:
     def test_empty_is_safe(self):
         assert cycle_durations([]) == {"n": 0}
         assert throughput([])["cycles_per_min"] == 0.0
-        assert outcome_summary([])["success_rate"] == 0.0
+        assert outcome_summary([])["success_rate"] is None
 
     def test_outcome_breakdown(self):
         cycles = [
@@ -69,13 +69,16 @@ class TestMetrics:
             gt_cycles=[{"start_ms": 0, "end_ms": 1000, "outcome": "OK"}],
             detected_cycles=[{"start_ms": 10, "end_ms": 990}],
             idle_intervals=[],
-            vision_report={"f1": 1.0, "precision": 1.0, "recall": 1.0,
+            vision_report={"reference_id": "unit-reference", "f1": 1.0,
+                           "precision": 1.0, "recall": 1.0,
                            "true_positives": 1, "false_positives": 0,
                            "false_negatives": 0},
         )
         assert set(m) == {"cycle_durations", "outcomes", "throughput",
                           "idle", "detection"}
         assert m["detection"]["f1"] == 1.0
+        assert m["cycle_durations"]["mean_ms"] == 980.0
+        assert m["outcomes"]["success_rate"] is None
 
     def test_detection_quality_absent(self):
         assert detection_quality(None) == {"available": False}
