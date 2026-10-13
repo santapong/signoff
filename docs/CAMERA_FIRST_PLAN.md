@@ -1,6 +1,6 @@
 # Signoff camera measurement project plan
 
-**Status:** Proposed implementation roadmap  
+**Status:** Implementation authorized; physical qualification results pending
 **Prepared:** 13 October 2026, Asia/Bangkok  
 **Baseline:** develop at `68e82928ce7950948c638cb5d13852eb6fe9c753`
 
@@ -137,7 +137,7 @@ Implement in the order below. Each milestone is a small reviewable change set ag
 | M3 Shared measurement engine | Stateful task sequence, completed-event finalization, cumulative counts and recorded/live parity | Long-run fixture totals never fall; incomplete events never become completed; exact replay matches when pixels/clocks match |
 | M4 Engineer workflow and evidence | Functional browser review, immutable runs, timeline/clip links and common exports | Upload and live session each complete the full review/export flow with no unsupported metric claims |
 | M5 Physical camera qualification | Independent annotation, frozen session splits, nominal and changed-condition evaluation | Proposed measurement targets pass on held-out real footage; limitations reported per condition |
-| M6 External pilot and release | Packaging, authenticated LAN pilot, restart/restore drills, operator guide and feedback | Independent engineer completes the workflow; operational and evidence gates pass; release follows the existing pilot gate |
+| M6 Owner pilot and release | Packaging, authenticated pilot, restart/restore drills, operator guide and feedback | Owner completes the workflow with assistant support; actual station accuracy and an OWNER acceptance receipt pass the release gate |
 | M7 Secondary Embodied AI adapter | Experiment IDs, controller/policy labels and reproducible comparison exports | Same qualified camera measurement protocol compares policies without consuming robot ground truth during inference |
 
 M0–M6 are the primary program. M7 starts after M5 and M6 qualify; it does not introduce policy training, robot commands or a separate experiment framework.
@@ -168,7 +168,7 @@ These are targets for this proposed roadmap, not achieved results or a silent ch
 | Recorded/live parity | Exact event/count/timing equality when replay uses the identical archived observations and clocks |
 | Live processing | Host-ingest-to-publication P95 ≤1 s and no qualified event over 5 s during a two-hour soak; sensor exposure latency is reported separately and not assumed |
 | Integrity | Every reported event resolves to source evidence with validated hashes; changed evidence prevents a qualified report |
-| Review | Independent engineer can inspect, correct and export a session; unreviewed outcomes remain unknown |
+| Review | Owner can inspect, correct and export a session with assistant support; unreviewed outcomes remain unknown; owner review is distinguished from independent external review |
 | Recovery | Crash/restart and restore preserve completed runs and revisions; interrupted capture intervals remain explicit |
 
 Show numerator, denominator and uncertainty intervals alongside precision/recall. The gate applies to the stated station/profile and condition range. Changed-condition failures are either resolved before expansion or declared unsupported; they are not hidden in a pooled average.
@@ -189,7 +189,7 @@ Archive restore must reject traversal, absolute paths, links and unexpected memb
 
 Retain source, event, profile and environment provenance. Log camera state, observation rate, missing-frame rate, queue depth, disk headroom, job state, clock quality and measured processing latency. Use these local records for qualification; no recurring monitoring service or notification automation is introduced by this plan.
 
-Package a versioned container and run the recorded and USB scenarios from a clean environment before an external pilot. Publish v0.2.0 only after the pilot and repository review/release gates pass. Keep the prior container and evidence format readers for rollback; new outputs remain versioned and old evidence is not rewritten.
+Package a versioned container and run the recorded and USB scenarios from a clean environment before the owner pilot. Publish v0.2.0 only after actual station qualification, an accepted owner pilot and repository review/release gates pass. Keep the prior container and evidence format readers for rollback; new outputs remain versioned and old evidence is not rewritten. The owner explicitly selected a pilot conducted together with the assistant; external independent validation is a later expansion, not a claim of this pilot.
 
 ## Secondary research and expansion
 
@@ -205,4 +205,3 @@ Hardware purchases, physical arm commissioning, cloud/GPU spending, infrastructu
 - OpenCV documents marker IDs and corner detection in [its ArUco tutorial](https://docs.opencv.org/5.0/tutorials/objdetect/aruco_detection/aruco_detection.html). This supports the method choice; it does not establish accuracy at this station.
 - PyAV documents decoded frame timing as presentation timestamps multiplied by their time base in [its timing reference](https://pyav.org/docs/stable/api/time.html).
 - [FFprobe documentation](https://ffmpeg.org/ffprobe.html) supports probing actual media streams and frame metadata.
-

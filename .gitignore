@@ -11,3 +11,12 @@ models/
 node_modules/
 .pytest_cache/
 .ruff_cache/
+.venv/
+dist/
+*.egg-info/
+backups/
+datasets/media/
+datasets/reports/
+datasets/runs/
+datasets/profiles/
+datasets/jobs/
