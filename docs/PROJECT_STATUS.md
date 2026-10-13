@@ -1,4 +1,27 @@
-# Signoff — Project Status
+# Signoff current milestone status
+
+Checked 13 October 2026. Implementation is on `feat/camera-program-v02`, tracked by [issue 1](https://github.com/santapong/signoff/issues/1). The v0.2.0-rc1 software candidate is built from the camera-first program.
+
+| Milestone | Software state | Required external evidence |
+|---|---|---|
+| M0 | Requirements and qualification contract frozen | Actual station/profile confirmation before physical scoring |
+| M1 | Replay and metric defects repaired; locked environment and lint clean | None for software regression |
+| M2 | Timestamped USB/file adapters, one capture owner and lossless segmented recording implemented | Actual camera capture/observed rate pending |
+| M3 | Shared marker/motion engine, finalized stable events, cumulative totals and replay parity implemented | Real-station accuracy pending |
+| M4 | Durable analysis, playable evidence, revisions, exports and owner decision workflow implemented | Actual owner-pilot operation pending |
+| M5 | Frozen-dataset and qualification tooling implemented and tested | No real recordings yet; physical qualification pending |
+| M6 | Authentication, packaging, safe restore, browser workflow and release gate implemented | OWNER pilot acceptance and real-camera soak pending |
+| M7 | Optional frozen-report comparison CLI implemented and tested | Comparisons remain provisional until physical/pilot gates pass |
+
+Fresh validation: **199 integrated tests plus 13 focused headless-reference tests passed**, followed by a **44-case provenance/vision/workflow regression** after the container provenance repair. Ruff is clean. A disposable browser rehearsal uploaded a generated marker video, detected four cycles, played derived evidence and submitted an UNKNOWN review. This is software/simulation evidence. The owner reported no real recordings and selected a pilot with assistant support; no independent external pilot is claimed.
+
+The production release gate remains PENDING. The release-candidate package is for software rehearsal and capture preparation; it is not a physically qualified instrument release.
+
+## Historical software checkpoint from August
+
+The following is preserved as reported history. Its pilot-ready wording does not override the October scope and pending physical gates above.
+
+# August project checkpoint
 
 Last updated: 2026-08-26
 

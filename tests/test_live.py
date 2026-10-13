@@ -4,11 +4,9 @@ from __future__ import annotations
 import threading
 import time
 
-import numpy as np
 import pytest
 
-from services.live_worker.engine import (
-    LATENCY_BUDGET_MS, EventBus, LiveEngine, SyntheticLiveSource)
+from services.live_worker.engine import LATENCY_BUDGET_MS, EventBus, LiveEngine, SyntheticLiveSource
 
 
 def _run_engine(source, seconds: float, **kw) -> tuple[LiveEngine, EventBus]:
@@ -150,10 +148,14 @@ def _make_event(capture_offset_ms: float):
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("SIGNOFF_DATA_DIR", str(tmp_path / "data"))
     import importlib
+
     import apps.api.main as api_main
     importlib.reload(api_main)
     from fastapi.testclient import TestClient
-    return TestClient(api_main.app), api_main
+    monkeypatch.delenv("SIGNOFF_TOKEN", raising=False)
+    monkeypatch.setenv("SIGNOFF_ALLOW_SYNTHETIC", "1")
+    with TestClient(api_main.app) as tc:
+        yield tc, api_main
 
 
 class TestAC3_Dashboard:
@@ -163,11 +165,20 @@ class TestAC3_Dashboard:
         assert r.status_code == 200
         assert "Live Monitoring" in r.text
 
-        r2 = tc.post("/live/start", params={"synthetic": "true"})
+        profile = tc.post("/profiles", json={
+            "profile_id": "live-api", "camera": {"width": 160, "height": 120, "fps": 30},
+            "detector": {"method": "motion"}})
+        assert profile.status_code == 201, profile.text
+        r2 = tc.post("/live/start", json={
+            "profile_id": "live-api", "source": "synthetic", "record": True})
+        assert r2.status_code == 200, r2.text
         assert r2.json()["status"] == "started"
+        sid = r2.json()["session_id"]
         try:
             status = tc.get("/live/status").json()
             assert status["running"] is True
+            assert status["session_id"] == sid
+            assert status["source"] == "synthetic_development"
             assert status["latency_budget_ms"] == 5000.0
 
             deadline = time.monotonic() + 12.0
@@ -180,6 +191,8 @@ class TestAC3_Dashboard:
             assert status["max_latency_ms"] < 5000.0
         finally:
             assert tc.post("/live/stop").json()["status"] == "stopped"
+        assert api_main.session_info(sid)["video_file"] == "recording.manifest.json"
+        assert tc.get("/live/status").json()["running"] is False
 
     def test_status_when_not_running(self, client):
         tc, _ = client

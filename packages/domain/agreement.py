@@ -1,6 +1,8 @@
 """E8 instrument: inter-annotator agreement (Cohen's kappa)."""
 from __future__ import annotations
 
+from packages.domain.annotations import latest_annotations
+
 
 def cohens_kappa(labels_a: list[str], labels_b: list[str]) -> float:
     """Kappa over paired outcome labels. Raises on length mismatch."""
@@ -26,20 +28,22 @@ def agreement_report(annotations_by_annotator: dict[str, list[dict]]) -> dict:
     """
     annotators = sorted(annotations_by_annotator)
     by_cycle = {
-        name: {a["cycle"]: a.get("outcome", "OK")
-               for a in rows}
+        name: {a.get("cycle_id", a["cycle"]): a.get("outcome", "UNKNOWN")
+               for a in latest_annotations(rows)}
         for name, rows in annotations_by_annotator.items()
     }
     pairs = []
     for i in range(len(annotators)):
         for j in range(i + 1, len(annotators)):
             a_name, b_name = annotators[i], annotators[j]
-            common = sorted(set(by_cycle[a_name]) & set(by_cycle[b_name]))
+            common = sorted(set(by_cycle[a_name]) & set(by_cycle[b_name]), key=str)
             la = [by_cycle[a_name][c] for c in common]
             lb = [by_cycle[b_name][c] for c in common]
             pairs.append({
                 "annotators": [a_name, b_name],
                 "n_common_cycles": len(common),
                 "kappa": cohens_kappa(la, lb) if common else None,
+                "unknown_pairs": sum(a == "UNKNOWN" or b == "UNKNOWN" for a, b in zip(la, lb)),
+                "source": "independent_annotation_labels",
             })
     return {"pairs": pairs}

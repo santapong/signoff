@@ -1,14 +1,13 @@
-"""Frame sources: webcam capture and deterministic video-file replay.
+"""Timestamped observations and replay on capture clocks or decoded PTS."""
 
-Replay uses frame_index.jsonl (written by the Phase 1 recorder) so detection
-runs on exactly the recorded clock shared with ground truth.
-"""
 from __future__ import annotations
 
+import hashlib
 import json
+import math
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 import numpy as np
 
@@ -16,75 +15,130 @@ import numpy as np
 @dataclass
 class Frame:
     frame_no: int
-    ms: float  # ms since record/session start (shared clock)
-    image: np.ndarray  # BGR uint8
+    ms: float
+    image: np.ndarray
+    session_id: str = ""
+    segment_id: str = ""
+    clock_basis: str = "unknown"
+    receipt_ms: float | None = None
+    quality_flags: tuple[str, ...] = ()
+
+
+def pixel_hash(image: np.ndarray) -> str:
+    return hashlib.sha256(np.ascontiguousarray(image).tobytes()).hexdigest()
+
+
+def _read_clock(index_path: Path) -> list[dict]:
+    if not index_path.exists():
+        return []
+    rows = []
+    previous_ms = -1.0
+    with index_path.open() as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            number = int(rec.get("segment_frame", rec["frame"]))
+            ms = float(rec["ms"])
+            if number != len(rows) or not math.isfinite(ms) or ms < 0:
+                raise ValueError("frame clock must be contiguous with finite nonnegative times")
+            if ms <= previous_ms:
+                raise ValueError("frame clock must be strictly increasing")
+            rows.append(rec)
+            previous_ms = ms
+    if not rows:
+        raise ValueError("frame clock is empty")
+    return rows
 
 
 class VideoFileSource:
-    """Replay an MP4 with its sibling frame_index.jsonl as the clock."""
+    """Decode once with PyAV. Sidecars are authoritative and strictly validated."""
 
-    def __init__(self, video_path: Path):
-        import cv2  # deferred so tests can use synthetic frames without cv2
+    def __init__(self, video_path: Path, clock_path: Path | None = None):
+        import av
 
         self.video_path = Path(video_path)
-        self.cap = cv2.VideoCapture(str(self.video_path))
-        if not self.cap.isOpened():
-            raise RuntimeError(f"cannot open video {self.video_path}")
-        index_path = self.video_path.parent / "frame_index.jsonl"
-        entries = _load_clock(index_path)
-        if entries:
-            self.clock = entries
-        else:
-            # linear fallback on the container's declared fps
-            fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
-            if fps <= 0:
-                fps = 30.0
-            def clock(frame_no: int, _fps: float = fps) -> float:
-                return round(frame_no / _fps * 1000.0, 1)
-            self.clock = clock
+        if clock_path is None:
+            candidate = self.video_path.with_suffix(".clock.jsonl")
+            legacy = self.video_path.parent / "frame_index.jsonl"
+            clock_path = candidate if candidate.exists() else legacy if legacy.exists() else None
+        if clock_path is not None and not Path(clock_path).is_file():
+            raise ValueError("requested frame clock is missing")
+        self.clock_path = Path(clock_path) if clock_path is not None else None
+        self.clock_rows = _read_clock(self.clock_path) if self.clock_path else []
+        self.clock = {i: float(row["ms"]) for i, row in enumerate(self.clock_rows)}
+        self.container = av.open(str(self.video_path))
+        if not self.container.streams.video:
+            self.container.close()
+            raise ValueError("media contains no video stream")
+        self.stream = self.container.streams.video[0]
+        self.clock_basis = "capture_sidecar" if self.clock_rows else "decoded_pts"
+        self.duration_ms: float | None = None
+        if not self.clock_rows and self.stream.duration is not None:
+            self.duration_ms = float(self.stream.duration * self.stream.time_base) * 1000.0
 
     def frames(self) -> Iterator[Frame]:
-        n = 0
-        while True:
-            ok, img = self.cap.read()
-            if not ok:
-                break
-            yield Frame(frame_no=n, ms=self.clock(n), image=img)
-            n += 1
+        previous_ms = -1.0
+        origin_pts: float | None = None
+        count = 0
+        for n, decoded in enumerate(self.container.decode(self.stream)):
+            image = decoded.to_ndarray(format="bgr24")
+            if self.clock_rows:
+                if n >= len(self.clock_rows):
+                    raise ValueError("frame clock does not cover all decoded frames")
+                row = self.clock_rows[n]
+                ms = float(row["ms"])
+                if row.get("pixel_sha256") and pixel_hash(image) != row["pixel_sha256"]:
+                    raise ValueError("decoded pixels do not match capture evidence hash")
+            else:
+                if decoded.pts is None or decoded.time_base is None:
+                    raise ValueError("video has no trustworthy presentation timestamps")
+                pts_ms = float(decoded.pts * decoded.time_base) * 1000.0
+                if origin_pts is None:
+                    origin_pts = pts_ms
+                ms = pts_ms - origin_pts
+                row = {}
+            if not math.isfinite(ms) or ms < 0 or ms <= previous_ms:
+                raise ValueError("video timestamps must be finite and strictly increasing")
+            previous_ms = ms
+            count += 1
+            yield Frame(
+                int(row.get("frame", n)),
+                ms,
+                image,
+                str(row.get("session_id", "")),
+                str(row.get("segment_id", "")),
+                str(row.get("clock_basis", self.clock_basis)),
+                row.get("receipt_ms"),
+                tuple(row.get("quality_flags", [])),
+            )
+        if self.clock_rows and count != len(self.clock_rows):
+            raise ValueError("frame clock contains records without decoded frames")
+        if count == 0:
+            raise ValueError("video contains no decodable frames")
 
     def close(self) -> None:
-        self.cap.release()
+        self.container.close()
 
 
 class SyntheticSource:
-    """Deterministic in-memory source for tests: no camera or codec needed."""
+    """Deterministic in-memory source; always labelled synthetic."""
 
-    def __init__(self, images: list[np.ndarray], cycle_ms: list[tuple[float, float]],
-                 fps: float = 30.0):
-        self.images = images
-        self.cycle_ms = cycle_ms  # list of (activity_start_ms, activity_end_ms)
-        self.fps = fps
+    def __init__(
+        self, images: list[np.ndarray], cycle_ms: list[tuple[float, float]], fps: float = 30.0
+    ):
+        if not math.isfinite(fps) or fps <= 0:
+            raise ValueError("fps must be positive")
+        self.images, self.cycle_ms, self.fps = images, cycle_ms, fps
 
     def frames(self) -> Iterator[Frame]:
-        total_frames = len(self.images)
         for n, img in enumerate(self.images):
-            yield Frame(
-                frame_no=n,
-                ms=round(n / self.fps * 1000.0, 1),
-                image=img,
-            )
-        assert total_frames >= 0
+            yield Frame(n, round(n / self.fps * 1000.0, 1), img, clock_basis="synthetic")
 
-    def close(self) -> None:  # interface parity
+    def close(self) -> None:
         pass
 
 
 def _load_clock(index_path: Path) -> dict[int, float]:
-    """Frame->ms map from frame_index.jsonl; empty when absent."""
-    entries: dict[int, float] = {}
-    if index_path.exists():
-        with index_path.open() as fh:
-            for line in fh:
-                rec = json.loads(line)
-                entries[int(rec["frame"])] = float(rec["ms"])
-    return entries
+    """Legacy helper, now with strict coverage/order validation."""
+    return {int(row["frame"]): float(row["ms"]) for row in _read_clock(index_path)}

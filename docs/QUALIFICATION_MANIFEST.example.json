@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "dataset_id": "station-qualification-v1",
+  "source_kind": "physical_robot_station",
+  "frozen_at": null,
+  "capture_attested_by": null,
+  "annotators": [],
+  "annotator_kinds": {},
+  "sessions": [],
+  "protocol_id": "pick-place-v1",
+  "protocol": null,
+  "protocol_sha256": null
+}

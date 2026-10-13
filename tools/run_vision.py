@@ -15,10 +15,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from packages.cv.signoff_cv.evaluate import evaluate_session          # noqa: E402
-from packages.cv.signoff_cv.motion import MotionDetector              # noqa: E402
+from packages.cv.signoff_cv.evaluate import evaluate_session  # noqa: E402
+from packages.cv.signoff_cv.motion import MotionDetector  # noqa: E402
 from packages.cv.signoff_cv.segmenter import detect_idle, segment_cycles  # noqa: E402
-from packages.cv.signoff_cv.source import VideoFileSource             # noqa: E402
+from packages.cv.signoff_cv.source import VideoFileSource  # noqa: E402
 
 
 def main() -> int:

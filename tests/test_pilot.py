@@ -1,8 +1,9 @@
 """Phase 7 pilot readiness acceptance tests (AC1-AC6)."""
 from __future__ import annotations
 
-import json
 import sys
+import tarfile
+import time
 from pathlib import Path
 
 import numpy as np
@@ -31,18 +32,30 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("SIGNOFF_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.delenv("SIGNOFF_TOKEN", raising=False)
     import importlib
+
     import apps.api.main as api_main
     importlib.reload(api_main)
     from fastapi.testclient import TestClient
-    yield api_main, TestClient(api_main.app), tmp_path
+    with TestClient(api_main.app) as tc:
+        yield api_main, tc, tmp_path
 
 
 def _upload_and_analyze(tc) -> str:
     r = tc.post("/sessions/upload",
                 files={"video": ("t.mp4", _demo_mp4(), "video/mp4")})
+    assert r.status_code == 201, r.text
     sid = r.json()["session_id"]
-    assert tc.post(f"/sessions/{sid}/analyze").status_code == 200
-    return sid
+    analysis = tc.post(f"/sessions/{sid}/analyze")
+    assert analysis.status_code == 202, analysis.text
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        run = tc.get(analysis.json()["status_url"]).json()
+        if run["state"] in {"complete", "failed", "interrupted"}:
+            assert run["state"] == "complete", run
+            assert tc.get(run["artifacts"]["report.json"]).status_code == 200
+            return sid
+        time.sleep(0.02)
+    pytest.fail("analysis did not finish within 30 seconds")
 
 
 class TestAC1_Auth:
@@ -72,6 +85,8 @@ class TestAC1_Auth:
         login = tc.post("/ui/login", data={"token": "sekrit"},
                         follow_redirects=False)
         assert login.status_code == 303
+        assert tc.cookies.get("signoff_session") != "sekrit"
+        assert tc.cookies.get("signoff_csrf")
         page = tc.get("/ui/")
         assert page.status_code == 200
         bad = tc.post("/ui/login", data={"token": "wrong"})
@@ -146,12 +161,8 @@ class TestAC3_BackupRestore:
         corrupt_target = tmp_path / "corrupt.tar.gz"
         corrupt_target.write_bytes(raw[:len(raw)//2])   # truncated archive
         from tools.pilot_backup import restore
-        with pytest.raises((SystemExit, tarfile.TarError, EOFError,
-                            OSError)) if False else pytest.raises(Exception):
+        with pytest.raises((tarfile.TarError, EOFError, OSError, ValueError)):
             restore(corrupt_target, tmp_path / "datasets")
-
-
-import tarfile  # noqa: E402
 
 
 class TestAC4_Feedback:

@@ -1,0 +1,38 @@
+{
+  "schema_version": 2,
+  "software_commit": "c92a3555f088451fea94f70934dcdfd369948463",
+  "integrated_tests": {
+    "passed": 199,
+    "warnings": 1,
+    "seconds": 50.5
+  },
+  "reference_annotation_tests": {
+    "passed": 13,
+    "seconds": 8.36
+  },
+  "lint": "passed",
+  "browser_rehearsal": {
+    "source_kind": "simulation",
+    "profile_id": "simulation-pick-place",
+    "detected_cycles": 4,
+    "mean_duration_ms": 2400.0,
+    "f1": "unavailable_without_independent_reference",
+    "success_rate": "unavailable_without_confirmed_outcomes",
+    "derived_cycle_playback": {
+      "readyState": 4,
+      "duration_seconds": 2.4
+    },
+    "append_only_unknown_review": "verified"
+  },
+  "physical_qualification": false,
+  "owner_pilot_acceptance": false,
+  "production_release_channel": "PENDING",
+  "validation_scope": "software and generated fixtures; no hardware was accessed",
+  "provenance_regression_tests": {
+    "passed": 44,
+    "warnings": 1,
+    "seconds": 9.58,
+    "new_unique_cases": 5
+  },
+  "container_provenance_repair": "SIGNOFF_GIT_SHA binds an identified build when Git is absent"
+}

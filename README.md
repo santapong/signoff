@@ -1,96 +1,85 @@
 # Signoff
 
-Camera-first, controller-independent, evidence-first measurement of robot automation performance.
+Signoff measures visible robot task sequences from a fixed camera and produces reports whose evidence an automation engineer can inspect. Camera measurement is the primary product; comparison of Embodied AI policies is an optional secondary application.
 
-Signoff observes a robot cell through an ordinary fixed camera and converts video into
-measurable operational evidence: cycle counts, cycle-time distributions, operating/idle
-time, failure evidence, and human-verifiable acceptance reports — with **no PLC, MES,
-SCADA, or proprietary robot-controller integration required**.
+**Current package: v0.2.0-rc1, a software release candidate.** Physical station qualification and owner-pilot acceptance remain pending real recordings. Software regression tests and simulation footage do not establish robot accuracy.
 
-> Can a camera-only system measure robot operational performance accurately enough that
-> another person can verify and trust the result?
+## What an engineer can do
 
-## Core principles
+Create an immutable station profile, upload MP4/MKV footage or deliberately start one USB camera, analyze the visible HOME → PICK → PLACE → HOME sequence, inspect cycle clips, append human review and export JSON/CSV/HTML/Markdown or a printable report.
 
-1. **Evidence before intelligence** — every metric traces back to inspectable visual evidence.
-2. **Measurement before explanation** — WHAT/WHEN/HOW LONG before WHY.
-3. **Unknown is a valid output** — uncertain evidence becomes `UNKNOWN`, never false confidence.
-4. **Human review remains possible** — model predictions and human revisions are stored separately.
-5. **Controller independence** — the measurement pipeline never depends on robot telemetry.
-6. **No LLM/VLM in the measurement critical path** (v0.x) — acceptance numbers are deterministic and reproducible.
+Cycle completion is a visible sequence measurement. Outcome success uses confirmed human reviews; unreviewed and uncertain outcomes stay UNKNOWN. Detection F1 is unavailable without a separate identified reference set. Visual activity is distinct from machine availability, product quality and safety acceptance.
 
-## Pipeline
+## Local setup
 
-```
-Camera / Recorded Video
-    → Video Processing
-    → Visual Observations
-    → Temporal Event Detection
-    → Robot Cell State Estimation
-    → Cycle Detection
-    → Performance Metrics
-    → Evidence Clips
-    → Human Verification
-    → Acceptance Evidence Report
+Use Python 3.12 and FFmpeg. Runtime and developer dependency locks include hashes.
+
+```sh
+uv venv venv --python 3.12
+uv pip sync --python venv/bin/python --require-hashes requirements-dev.lock
 ```
 
-## Repository layout
+Set a private `SIGNOFF_TOKEN` in your terminal environment. Then start the local application:
 
-```
-apps/api/            FastAPI REST API
-apps/web/            React + TypeScript frontend
-services/            video / inference / report workers
-packages/
-  domain/            core domain models & schemas
-  cv/                computer-vision baselines (markers, classical, detection+tracking)
-  temporal/          event/state inference rules
-  metrics/           cycle metrics, throughput, availability
-  evidence/          clip generation & provenance hashing
-  reporting/         evidence report generator
-robotics/elexhub/    experiment arm driver (data generation only)
-experiments/         E0–E9 experiment protocols & results
-datasets/manifests/  dataset cards (raw videos are NOT committed)
-infra/               docker / compose
-tests/               unit + golden-video tests
-docs/                SDD.md, EXPERIMENT_PROTOCOL.md, DATASET_CARD.md, MODEL_CARD.md
+```sh
+SIGNOFF_REQUIRE_AUTH=1 SIGNOFF_DATA_DIR=data/local-pilot \
+  venv/bin/python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8600
 ```
 
-## Development phases
+Open `http://127.0.0.1:8600/ui`, sign in, create a station profile and upload footage. Camera access starts only when the operator explicitly chooses a source and presses Start. The default source never silently selects a synthetic camera.
 
-Status as of 2026-08-26 — all software phases complete on `develop` (83/83 tests).
+## Rehearse before physical collection
 
-| Phase | Deliverable | Status |
-|-------|-------------|--------|
-| 0 | ELEXHUB arm bring-up: 50 automated cycles, safe joint limits | **BACKLOG** (hardware-dependent) |
-| 1 | Dataset rig: fixed webcam, ground-truth logger, 100+ labeled cycles | ✅ software done (`feature/phase1-dataset-rig` merged); physical exit (100+ labeled cycles) blocked by Phase 0 |
-| 2 | Signoff offline v0.1: upload → marker/classical detection → cycles → metrics → report | ✅ done |
-| 3 | CV v0.2: detection + tracking, states, failures, human review | ✅ done |
-| 4 | Live monitoring v0.3 (<5 s latency) | ✅ done — verified 1.2 ms worst latency |
-| 5 | Commercial MVP | ✅ done — web UI + Docker image |
-| 6 | Pilot readiness: auth, multi-annotator agreement, backup/restore, feedback, runbook | ✅ done |
-| 7 | External pilot → industrial pilot | ⏳ awaiting pilot customer |
+```sh
+venv/bin/python tools/generate_demo.py --out data/demo-camera-v2 --lossless
+venv/bin/python tools/print_markers.py --out data/markers
+```
 
-### Backlog
+The demo is a clearly labeled four-cycle simulation with an independent scripted reference, a profile and optional lossless archive. Its destination must be empty. It cannot qualify a physical station. Synthetic live input is available only with `SIGNOFF_ALLOW_SYNTHETIC=1` in a deliberately local development process.
 
-- **Phase 0 arm bring-up** (parked): real `SerialArm` transport for the
-  Arduino Mega + ELEXHUB 6-DOF arm. Blocked on hardware bring-up and the
-  firmware/serial protocol details. Everything else runs without it —
-  upload/review/live flows work on recorded or synthetic video.
-- Physical dataset collection (100+ labeled cycles) after Phase 0 gate.
-- Merge `develop` → `main` release cut when a pilot is signed.
+Independent references can be authored with the headless `tools/annotate_reference.py` frame-map/CSV workflow. It never runs the detector or opens a GUI.
 
-See [docs/SDD.md](docs/SDD.md), [docs/PILOT_RUNBOOK.md](docs/PILOT_RUNBOOK.md),
-and per-phase plans in [docs/plans/](docs/plans/).
+See [first recordings and owner pilot](docs/CAPTURE_GUIDE.md) to collect actual station footage.
 
-## Tech stack
+## Container
 
-Python · FastAPI · Pydantic · SQLAlchemy · PostgreSQL · OpenCV · FFmpeg · PyTorch (optional) · React/TypeScript/Vite/Tailwind
+The image uses a pinned Python base digest and hashed runtime dependencies. Set `SIGNOFF_TOKEN`, then:
 
-## Contributing
+```sh
+docker compose -f infra/docker-compose.yml up --build -d
+```
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md). All changes go through pull requests;
-`main` is protected.
+The default port binds loopback. Add `-f infra/docker-compose.usb.yml` only for an operator-selected USB device. Public exposure and TLS configuration are separate deployment actions.
 
-## License
+## Qualification and release
 
-MIT — see [LICENSE](LICENSE).
+Freeze complete-session splits and independent annotation artifacts before tuning. The qualifier verifies hashes, clocks, preserved reviewers/adjudication, denominators, boundary errors and coverage. It does not verify a physical capture from a source label alone.
+
+```sh
+venv/bin/python tools/qualify_dataset.py MANIFEST --data-root DATA --out data/qualification.json
+venv/bin/python tools/release_gate.py --qualification data/qualification.json \
+  --pilot OWNER_RECEIPT --report FROZEN_REPORT --manifest MANIFEST --data-root DATA
+```
+
+Exit 2 means PENDING and retains the release-candidate channel. Production eligibility requires real station qualification and a named OWNER ACCEPT decision bound to the exact report, dataset and qualification receipt. Owner/assistant collaboration is not external independent validation.
+
+## Secondary experiment comparison
+
+```sh
+venv/bin/python tools/compare_experiments.py experiments.json --out data/comparison
+```
+
+The manifest selects frozen report files and declares experiment/controller/policy labels plus a fixed protocol. Incompatible or tampered reports are rejected. Missing physical qualification keeps the comparison provisional. Signoff does not train or control robots.
+
+## Documentation
+
+- [Camera-first roadmap](docs/CAMERA_FIRST_PLAN.md)
+- [Requirements and implementation contract](docs/REQUIREMENTS_v0.2.md)
+- [Current milestone status](docs/PROJECT_STATUS.md)
+- [Capture and owner-pilot guide](docs/CAPTURE_GUIDE.md)
+- [Release candidate](docs/RELEASE_v0.2.0-rc1.md)
+- [Branch policy](BRANCH_POLICY.md) and [contributing](CONTRIBUTING.md)
+
+Raw footage and model weights stay outside Git. The legacy full SDD is owner-held; its local file remains a placeholder. Earlier physical acceptance claims are not inferred from that placeholder or from software tests.
+
+MIT license.

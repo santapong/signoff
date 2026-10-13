@@ -1,0 +1,17 @@
+{
+  "python": "3.12.9 (main, Feb 12 2025, 14:50:50) [Clang 19.1.6 ]",
+  "packages": {
+    "fastapi": "0.143.0",
+    "starlette": "1.7.0",
+    "httpx": "0.28.1",
+    "numpy": "2.5.4",
+    "opencv-python-headless": "5.0.0.93",
+    "pytest": "9.1.1",
+    "ruff": "0.17.0",
+    "python-multipart": "0.0.32",
+    "jinja2": "3.1.6",
+    "uvicorn": "0.54.0",
+    "pyyaml": "6.0.3"
+  },
+  "baseline": "68e82928ce7950948c638cb5d13852eb6fe9c753"
+}

@@ -1,0 +1,5 @@
+# Explicit opt-in; use only after the operator selects and starts the camera.
+services:
+  signoff:
+    devices:
+      - "${SIGNOFF_CAMERA_DEVICE:-/dev/video0}:/dev/video0"

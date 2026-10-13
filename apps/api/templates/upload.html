@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html><head><title>Signoff — Upload</title>
-<style>
- body{font-family:system-ui;margin:2rem;background:#fafafa;color:#222}
- .nav a{margin-right:1rem;font-weight:600}
- form{background:#fff;padding:1.5rem;border:1px solid #ddd;max-width:480px}
- input[type=text]{width:100%;padding:.4rem;margin-bottom:.8rem}
-</style></head><body>
-{{ nav | safe }}
-<h1>Upload session video</h1>
-<form action="/ui/upload" method="post" enctype="multipart/form-data">
- <label>Video (mp4)<input type="file" name="video" accept="video/mp4" required></label><br><br>
- <label>Notes<input type="text" name="notes" placeholder="optional"></label><br><br>
- <button type="submit">Upload &amp; open session</button>
-</form>
-</body></html>
+{% extends 'base.html' %}{% block title %}Signoff — Upload{% endblock %}{% block content %}<h1>Upload session video</h1>
+<form action="/ui/upload" method="post" enctype="multipart/form-data" data-api>
+<label>Recorded video <input type="file" name="video" accept="video/mp4,video/x-matroska,.mkv" required></label>
+<label>Station profile <select name="profile_id"><option value="">Motion baseline — unqualified</option>{% for p in profiles %}<option value="{{ p.profile_id }}">{{ p.get('station_id',p.profile_id) }} — {{ p.profile_id }}</option>{% endfor %}</select></label>
+<label>Notes <input type="text" name="notes"></label><button>Upload &amp; open session</button></form>
+<p class="muted">MP4 and MKV are decoded and checked. Profile revisions are frozen with the upload. Reference labels are stored separately.</p>{% endblock %}

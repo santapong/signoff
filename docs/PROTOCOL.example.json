@@ -1,0 +1,6 @@
+{
+  "protocol_id": "pick-place-v1",
+  "contract": "signoff-camera-v0.2",
+  "description": "Fixed camera and immutable HOME/PICK/PLACE profile; reference labels separate from inference",
+  "source_kind": "physical_robot_station"
+}

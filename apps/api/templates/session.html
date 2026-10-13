@@ -1,63 +1,24 @@
-<!DOCTYPE html>
-<html><head><title>Session {{ s.id }}</title>
-<style>
- body{font-family:system-ui;margin:2rem;background:#fafafa;color:#222}
- .nav a{margin-right:1rem;font-weight:600}
- .card{background:#fff;border:1px solid #ddd;padding:1rem;margin:.8rem 0}
- pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:.85em;
-     background:#f4f4f4;padding:.75rem;border-radius:6px}
- table{border-collapse:collapse}th,td{border:1px solid #ddd;padding:.35rem .6rem}
-</style></head><body>
-{{ nav | safe }}
-<h1>Session {{ s.id }}</h1>
-<p>
- Status: {{ 'analyzed' if s.analyzed else 'uploaded (not analyzed)' }}
- &nbsp;·&nbsp; <a href="/sessions/{{ s.id }}/report">raw report</a>
-</p>
-
-{% if metrics %}
-<div class="card"><h2>Metrics</h2>
-<table>
-<tr><th>Cycles</th><td>{{ metrics.cycle_durations.n }}</td></tr>
-<tr><th>Mean duration</th><td>{{ metrics.cycle_durations.mean_ms }} ms</td></tr>
-<tr><th>p95 duration</th><td>{{ metrics.cycle_durations.p95_ms }} ms</td></tr>
-<tr><th>Success rate</th><td>{{ '%.1f%%'|format(metrics.outcomes.success_rate*100) }}</td></tr>
-<tr><th>Throughput</th><td>{{ metrics.throughput.cycles_per_min }} cycles/min</td></tr>
-<tr><th>Detection F1</th><td>{{ metrics.detection.f1 if metrics.detection.available else 'n/a' }}</td></tr>
-</table>
-</div>
-{% endif %}
-
-{% if hypotheses %}
-<div class="card"><h2>Failure hypotheses (auto — INFERRED)</h2>
-<ul>
-{% for h in hypotheses %}
-<li>Cycle {{ h.cycle_index }}: <b>{{ h.failure_type }}</b>
-    confidence {{ h.confidence }} {% if h.needs_review %}⚠ needs review{% endif %}
-    <br><small>{{ h.evidence }}</small></li>
-{% endfor %}
-</ul>
-<h3>Human review</h3>
-<form method="post" action="/ui/sessions/{{ s.id }}/review">
- <label>Annotator <input name="annotator" value="reviewer"></label><br>
- <label>Cycle # <input name="cycle" size="3"></label>
- <label>Outcome
-  <select name="outcome"><option>OK</option><option>FAILED</option></select></label>
- <label>Failure type
-  <select name="failure_type">
-   <option>NONE</option><option>GRASP_MISS</option><option>OBJECT_SLIP</option>
-   <option>OBJECT_DROP</option><option>DESTINATION_OCCUPIED</option>
-   <option>INTERRUPTED</option><option>OTHER</option>
-  </select></label>
- <input type="hidden" name="payload_template" value="1">
- <button type="submit">Submit correction</button>
-</form>
-<p><small>(API review endpoint accepts full batch corrections:
-POST /sessions/{{ s.id }}/review)</small></p>
-</div>
-{% endif %}
-
-{% if report_md %}
-<div class="card"><h2>Report</h2><pre>{{ report_md }}</pre></div>
-{% endif %}
-</body></html>
+{% extends 'base.html' %}{% block title %}Signoff — {{ s.id }}{% endblock %}{% block content %}<h1>Session {{ s.id }}</h1><p>Source: <strong>{{ s.source }}</strong> · Profile: {{ s.profile_id or 'motion baseline' }} · Qualification: {{ s.get('qualification','legacy') }}</p><p>{{ s.notes }}</p>
+<button id="analyze">Create analysis run</button><p id="run-state" role="status"></p>
+{% if s.video_file and (s.video_file.endswith('.mp4') or detected) %}
+<div class="card"><h2>Video evidence</h2>
+<video id="evidence" controls preload="metadata"
+{% if detected and detected[0].get('evidence',{}).get('url') %}
+src="{{ detected[0].evidence.url }}"
+{% elif s.video_file.endswith('.mp4') %}src="/sessions/{{ s.id }}/evidence"{% endif %}
+onerror="document.getElementById('media-help').textContent='Create an analysis run to prepare playable cycle evidence.'"></video>
+<p id="media-help" class="muted">{% if detected %}Use the timeline to inspect each cycle. The original recording is preserved.{% else %}Analyze this session to prepare the cycle timeline and viewing clips.{% endif %}</p>
+</div>{% endif %}
+{% if metrics %}<div class="card"><h2>Measurements</h2><table><tr><th>Completed visible cycles</th><td>{{ metrics.cycle_durations.n }}</td></tr><tr><th>Mean / P95 duration</th><td>{{ metrics.cycle_durations.get('mean_ms','N/A') }} / {{ metrics.cycle_durations.get('p95_ms','N/A') }} ms</td></tr><tr><th>Throughput</th><td>{{ metrics.throughput.get('cycles_per_min','N/A') }} cycles/min — full observed duration</td></tr><tr><th>Success rate — confirmed reviews</th><td>{{ '%.1f%%'|format(metrics.outcomes.success_rate*100) if metrics.outcomes.success_rate is not none else 'N/A — no confirmed outcomes' }}</td></tr><tr><th>Reference detection F1</th><td>{{ metrics.detection.f1 if metrics.detection.available else 'N/A — no independent reference set' }}</td></tr><tr><th>Coverage / quality</th><td>{{ analysis.coverage }} / {{ analysis.quality_flags }}</td></tr></table><p>Partial cycles: {{ analysis.get('partial_cycles',[])|length }}. Cycle completion does not certify object transfer or product quality.</p></div>
+<div class="card"><h2>Timeline &amp; human review</h2><table><tr><th>Cycle</th><th>Start / end</th><th>Outcome</th><th>Evidence</th></tr>{% for c in detected %}<tr><td>{{ c.cycle }}</td><td>{{ c.start_ms }} / {{ c.end_ms }} ms</td><td>{{ c.review.outcome if c.review else 'UNKNOWN — unreviewed' }}</td><td><button type="button" class="seek" data-start="{{ c.start_ms }}" data-end="{{ c.end_ms }}" data-clip="{{ c.get('evidence',{}).get('url','') }}">Inspect cycle {{ c.cycle }}</button></td></tr>{% endfor %}</table>
+<form id="review-form"><label>Reviewer<input name="annotator" value="owner" required pattern="[A-Za-z0-9_-]+"></label><label>Cycle<select name="cycle" required>{% for c in detected %}<option value="{{ c.cycle }}" data-start="{{ c.start_ms }}" data-end="{{ c.end_ms }}" data-clip="{{ c.get('evidence',{}).get('url','') }}">{{ c.cycle }}</option>{% endfor %}</select></label><label>Outcome<select name="outcome"><option>UNKNOWN</option><option>OK</option><option>FAILED</option></select></label><label>Failure type<select name="failure_type"><option>NONE</option><option>GRASP_MISS</option><option>OBJECT_SLIP</option><option>OBJECT_DROP</option><option>DESTINATION_OCCUPIED</option><option>INTERRUPTED</option><option>OTHER</option></select></label><button>Save review revision</button></form><p class="muted">Detected events stay immutable. Create a new analysis run after review to freeze updated outcome metrics.</p></div>
+<div class="card"><h2>Frozen report exports</h2>{% for ext in ['json','csv','html','md','print.html'] %}<a href="/runs/{{ run_id }}/artifacts/report.{{ ext }}" target="_blank">{{ 'Print / Save as PDF' if ext == 'print.html' else ext|upper }}</a> &nbsp;{% endfor %}<pre>{{ report_md }}</pre></div>
+<form id="acceptance-form"><h2>Owner pilot decision</h2><label>Reviewer<input name="reviewer" value="owner" required></label><label>Decision<select name="decision"><option>HOLD</option><option>ACCEPT</option><option>REJECT</option></select></label><label>Reason<input name="reason" required></label><button>Record decision against report hash</button><p>Owner workflow acceptance is separate from independent physical accuracy qualification.</p></form>{% endif %}
+<form id="feedback-form"><h2>Owner feedback</h2><label>Author<input name="author" value="owner"></label><label>Rating<input name="rating" type="number" min="1" max="5" value="4" required></label><label>Comment<input name="comment"></label><button>Save feedback</button></form>{% endblock %}
+{% block scripts %}<script>
+const sid={{ s.id|tojson }};document.getElementById('analyze').onclick=async()=>{try{const d=await api('/sessions/'+sid+'/analyze',{});notice(d);const poll=setInterval(async()=>{const r=await(await fetch(d.status_url)).json();document.getElementById('run-state').textContent=r.state+' '+r.progress+'%'+(r.reason?' — '+r.reason:'');if(['complete','failed','interrupted'].includes(r.state)){clearInterval(poll);if(r.state==='complete')location.reload()}},500)}catch(e){notice(e.message)}};
+document.querySelectorAll('.seek').forEach(b=>b.onclick=()=>{const v=document.getElementById('evidence');if(!v){notice('This source requires a derived playback segment; inspect its archived recording.');return}const clip=b.dataset.clip;if(clip){v.src=clip;v.currentTime=0;v.play();v.ontimeupdate=null;return}v.currentTime=Number(b.dataset.start)/1000;v.play();const end=Number(b.dataset.end)/1000;v.ontimeupdate=()=>{if(v.currentTime>=end){v.pause();v.ontimeupdate=null}}});
+const review=document.getElementById('review-form');if(review)review.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(review),o=review.elements.cycle.selectedOptions[0];try{notice(await api('/sessions/'+sid+'/review',{run_id:{{ run_id|tojson }},annotator:f.get('annotator'),cycles:[{cycle:Number(f.get('cycle')),start_ms:Number(o.dataset.start),end_ms:Number(o.dataset.end),outcome:f.get('outcome'),failure_type:f.get('failure_type')}]}));setTimeout(()=>location.reload(),600)}catch(e){notice(e.message)}});
+document.getElementById('feedback-form').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);try{notice(await api('/ui/sessions/'+sid+'/feedback',{author:f.get('author'),rating:Number(f.get('rating')),comment:f.get('comment')}))}catch(e){notice(e.message)}});
+const accept=document.getElementById('acceptance-form');if(accept)accept.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);try{notice(await api('/ui/sessions/'+sid+'/acceptance',{run_id:{{ run_id|tojson }},reviewer:f.get('reviewer'),decision:f.get('decision'),reason:f.get('reason')}))}catch(e){notice(e.message)}});
+</script>{% endblock %}

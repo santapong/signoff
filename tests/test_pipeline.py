@@ -7,8 +7,13 @@ import numpy as np
 import pytest
 
 from packages.metrics.signoff_metrics import (
-    cycle_durations, detection_quality, idle_ratio, outcome_summary,
-    session_metrics, throughput)
+    cycle_durations,
+    detection_quality,
+    idle_ratio,
+    outcome_summary,
+    session_metrics,
+    throughput,
+)
 from packages.reporting.signoff_report import render_markdown, write_report
 
 
@@ -34,7 +39,7 @@ class TestMetrics:
     def test_empty_is_safe(self):
         assert cycle_durations([]) == {"n": 0}
         assert throughput([])["cycles_per_min"] == 0.0
-        assert outcome_summary([])["success_rate"] == 0.0
+        assert outcome_summary([])["success_rate"] is None
 
     def test_outcome_breakdown(self):
         cycles = [
@@ -64,13 +69,16 @@ class TestMetrics:
             gt_cycles=[{"start_ms": 0, "end_ms": 1000, "outcome": "OK"}],
             detected_cycles=[{"start_ms": 10, "end_ms": 990}],
             idle_intervals=[],
-            vision_report={"f1": 1.0, "precision": 1.0, "recall": 1.0,
+            vision_report={"reference_id": "unit-reference", "f1": 1.0,
+                           "precision": 1.0, "recall": 1.0,
                            "true_positives": 1, "false_positives": 0,
                            "false_negatives": 0},
         )
         assert set(m) == {"cycle_durations", "outcomes", "throughput",
                           "idle", "detection"}
         assert m["detection"]["f1"] == 1.0
+        assert m["cycle_durations"]["mean_ms"] == 980.0
+        assert m["outcomes"]["success_rate"] is None
 
     def test_detection_quality_absent(self):
         assert detection_quality(None) == {"available": False}
@@ -118,10 +126,13 @@ class TestAPI:
         monkeypatch.setenv("SIGNOFF_DATA_DIR", os_env)
         # re-import module so DATA_DIR picks up env
         import importlib
+
         import apps.api.main as api_main
         importlib.reload(api_main)
         from fastapi.testclient import TestClient
-        return TestClient(api_main.app)
+        monkeypatch.delenv("SIGNOFF_TOKEN", raising=False)
+        with TestClient(api_main.app) as tc:
+            yield tc
 
     def _mp4_bytes(self, cycles=((1000.0, 2500.0),), total_s=4.0, fps=30.0):
         import cv2
@@ -145,15 +156,29 @@ class TestAPI:
         r = client.post("/sessions/upload",
                         files={"video": ("test.mp4", data, "video/mp4")},
                         data={"notes": "api roundtrip"})
-        assert r.status_code == 200, r.text
+        assert r.status_code == 201, r.text
         sid = r.json()["session_id"]
         sha = r.json()["sha256"]
 
         r2 = client.post(f"/sessions/{sid}/analyze")
-        assert r2.status_code == 200, r2.text
-        body = r2.json()
-        assert body["metrics"]["cycle_durations"]["n"] >= 1
-        assert body["metrics"]["detection"]["available"] is True
+        assert r2.status_code == 202, r2.text
+        import time
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            run = client.get(r2.json()["status_url"]).json()
+            if run["state"] in {"complete", "failed", "interrupted"}:
+                assert run["state"] == "complete", run
+                break
+            time.sleep(0.02)
+        else:
+            pytest.fail("analysis did not finish within 30 seconds")
+        body = client.get(run["artifacts"]["analysis.json"]).json()
+        assert body["metrics"]["cycle_durations"]["n"] == 2
+        assert body["metrics"]["detection"]["available"] is False
+        assert body["metrics"]["detection"].get("f1") is None
+        assert body["metrics"]["outcomes"]["success_rate"] is None
+        for cycle in body["detected_cycles"]:
+            assert client.get(cycle["evidence"]["url"]).status_code == 200
 
         r3 = client.get(f"/sessions/{sid}/report")
         assert r3.status_code == 200
@@ -164,6 +189,7 @@ class TestAPI:
         manifest = json.loads((api_main.DATA_DIR / "sessions" / sid
                                / "session.json").read_text())
         assert manifest["video_sha256"] == sha
+        assert manifest["notes"] == "api roundtrip"
 
     def test_unknown_session_404(self, client):
         assert client.post("/sessions/ses_NOPE/analyze").status_code == 404

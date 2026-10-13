@@ -1,14 +1,26 @@
 services:
   signoff:
-    build: .
-    image: signoff-mvp:latest
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SIGNOFF_GIT_SHA: ${SIGNOFF_GIT_SHA:-unknown}
+    image: signoff-camera:0.2.0-rc1
     ports:
-      - "${SIGNOFF_PORT:-8600}:8600"
+      - "127.0.0.1:${SIGNOFF_PORT:-8600}:8600"
     environment:
       SIGNOFF_DATA_DIR: /data
+      SIGNOFF_TOKEN: ${SIGNOFF_TOKEN:?Set a pilot access token before starting Signoff}
+      SIGNOFF_REQUIRE_AUTH: "1"
+      SIGNOFF_ALLOW_SYNTHETIC: ${SIGNOFF_ALLOW_SYNTHETIC:-0}
     volumes:
       - signoff-data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8600/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
 volumes:
   signoff-data:
