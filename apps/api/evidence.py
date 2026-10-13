@@ -183,7 +183,11 @@ def qualification_export(qualification_id: str):
 
 def qualification_bindings(data_root: Path, qualification_id: str, sid: str, run_id: str) -> dict:
     """Verify selected immutable receipt/manifest/report, without changing them."""
-    from apps.api.main import jobs
+    from apps.api.main import identifier, jobs, session_path
+
+    sid = identifier(sid)
+    run_id = identifier(run_id)
+    session_path(sid)
 
     store = workspace()
     if store.data != Path(data_root).resolve():
@@ -224,6 +228,18 @@ def qualification_bindings(data_root: Path, qualification_id: str, sid: str, run
         "inactivity_review_hash": inactivity.get("review_hash", digest(inactivity)),
         "inactivity_review": inactivity,
     }
+
+
+def shutdown_workspaces(data_root: Path, *, wait: bool = True) -> int:
+    """Close only previously created workers; importing/stopping opens no workspace."""
+    root = Path(data_root).resolve()
+    with _WORKSPACE_LOCK:
+        selected = [(key, value) for key, value in _workspaces.items() if value.data == root]
+        for key, _value in selected:
+            _workspaces.pop(key)
+    for _key, value in selected:
+        value.close(wait=wait)
+    return len(selected)
 
 
 @router.post("/qualification/owner-binding", status_code=201)

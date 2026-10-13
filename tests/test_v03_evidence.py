@@ -233,3 +233,24 @@ def test_dataset_import_cannot_read_arbitrary_files(source):
     with pytest.raises(ValueError, match="identifier"):
         store.import_candidate("../../etc")
     assert store.list()["approved_candidates"] == []
+
+
+def test_forged_run_identifier_rejected_before_any_artifact_read(source, monkeypatch):
+    from fastapi import HTTPException
+
+    import apps.api.main as main
+    from apps.api.evidence import qualification_bindings
+
+    root, _session, _media, _client = source
+    calls = []
+
+    class FakeJobs:
+        def artifact(self, *args):
+            calls.append(args)
+            pytest.fail("forged run reached artifact access")
+
+    monkeypatch.setattr(main, "jobs", lambda: FakeJobs())
+    with pytest.raises(HTTPException) as error:
+        qualification_bindings(root, "qual-valid", "ses-original", "../../other-run")
+    assert error.value.status_code == 422
+    assert calls == []

@@ -28,6 +28,8 @@ class QualificationWorkspace:
             max_workers=1, thread_name_prefix="signoff-qualification"
         )
         self.active: str | None = None
+        self.future = None
+        self.closed = False
         for path in (self.root / "jobs").glob("*.json"):
             row = json.loads(path.read_text())
             if row.get("status") in ("queued", "running"):
@@ -424,6 +426,8 @@ class QualificationWorkspace:
 
     def submit(self, dataset_id: str) -> dict:
         with self.lock:
+            if self.closed:
+                raise ValueError("qualification worker is closed")
             draft = self.get(dataset_id)
             freeze = draft.get("freeze")
             if not freeze:
@@ -449,8 +453,24 @@ class QualificationWorkspace:
             }
             atomic_json(self.root / "jobs" / f"{identity}.json", row)
             self.active = identity
-            self.executor.submit(self._run, identity)
+            self.future = self.executor.submit(self._run, identity)
             return row
+
+    def close(self, *, wait: bool = True) -> None:
+        """Finish active qualification on orderly shutdown; cancel an unstarted job."""
+        with self.lock:
+            self.closed = True
+            if self.future is not None and self.future.cancel() and self.active:
+                row = self.job(self.active)
+                row.update(
+                    status="interrupted",
+                    error="application stopped before qualification",
+                    finished_at=utcnow(),
+                )
+                atomic_json(self.root / "jobs" / f"{self.active}.json", row)
+                self.active = None
+        # Never hold the state lock while waiting: _run uses it when publishing completion.
+        self.executor.shutdown(wait=wait, cancel_futures=True)
 
     def _run(self, identity: str) -> None:
         row = self.job(identity)
