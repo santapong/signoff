@@ -10,7 +10,7 @@ Immutable station profiles; explicit USB/file input; strict decoded/captured clo
 
 The integrated host suite passed 199 tests, followed by 13 focused headless-reference tests, with Ruff clean. A generated four-cycle video exercised the visible browser profile/upload/analyze/evidence/review flow. Tests include recorded/live parity, clock and visibility gaps, duplicate/frozen dataset inputs, independent annotation lineage, report integrity, owner receipt binding, HTTP/WebSocket authentication and staged restore.
 
-These checks do not establish physical robot accuracy. A real-camera two-hour soak, station qualification and owner operation remain pending. Exact environment/build/browser receipts accompany the candidate under `docs/validation/2026-10-13/`.
+These checks do not establish physical robot accuracy. A real-camera two-hour soak, station qualification and owner operation remain pending. Environment and software/browser receipts are under `docs/validation/2026-10-13/`; final package and container hashes are in the candidate manifest alongside the build artifacts.
 
 ## Production eligibility
 
