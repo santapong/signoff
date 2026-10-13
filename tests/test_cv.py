@@ -4,10 +4,8 @@ from __future__ import annotations
 import json
 
 import numpy as np
-import pytest
 
-from packages.cv.signoff_cv.evaluate import (
-    GroundTruthCycle, load_ground_truth_cycles, match_cycles)
+from packages.cv.signoff_cv.evaluate import GroundTruthCycle, load_ground_truth_cycles, match_cycles
 from packages.cv.signoff_cv.motion import MotionDetector, signals_from_frames
 from packages.cv.signoff_cv.segmenter import detect_idle, segment_cycles
 from packages.cv.signoff_cv.source import Frame, SyntheticSource

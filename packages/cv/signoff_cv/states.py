@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from packages.cv.signoff_cv.motion import MotionSignal
 from packages.cv.signoff_cv.segmenter import DetectedInterval
 
-
 PHASES = ["APPROACH", "GRASP", "TRANSFER", "PLACE_RETRACT"]
 
 
