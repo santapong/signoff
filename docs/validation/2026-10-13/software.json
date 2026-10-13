@@ -27,5 +27,12 @@
   "physical_qualification": false,
   "owner_pilot_acceptance": false,
   "production_release_channel": "PENDING",
-  "validation_scope": "software and generated fixtures; no hardware was accessed"
+  "validation_scope": "software and generated fixtures; no hardware was accessed",
+  "provenance_regression_tests": {
+    "passed": 44,
+    "warnings": 1,
+    "seconds": 9.58,
+    "new_unique_cases": 5
+  },
+  "container_provenance_repair": "SIGNOFF_GIT_SHA binds an identified build when Git is absent"
 }

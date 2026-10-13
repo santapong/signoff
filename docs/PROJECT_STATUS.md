@@ -13,7 +13,7 @@ Checked 13 October 2026. Implementation is on `feat/camera-program-v02`, tracked
 | M6 | Authentication, packaging, safe restore, browser workflow and release gate implemented | OWNER pilot acceptance and real-camera soak pending |
 | M7 | Optional frozen-report comparison CLI implemented and tested | Comparisons remain provisional until physical/pilot gates pass |
 
-Fresh validation: **199 integrated tests plus 13 focused headless-reference tests passed**, Ruff clean. A disposable browser rehearsal uploaded a generated marker video, detected four cycles, played derived evidence and submitted an UNKNOWN review. This is software/simulation evidence. The owner reported no real recordings and selected a pilot with assistant support; no independent external pilot is claimed.
+Fresh validation: **199 integrated tests plus 13 focused headless-reference tests passed**, followed by a **44-case provenance/vision/workflow regression** after the container provenance repair. Ruff is clean. A disposable browser rehearsal uploaded a generated marker video, detected four cycles, played derived evidence and submitted an UNKNOWN review. This is software/simulation evidence. The owner reported no real recordings and selected a pilot with assistant support; no independent external pilot is claimed.
 
 The production release gate remains PENDING. The release-candidate package is for software rehearsal and capture preparation; it is not a physically qualified instrument release.
 

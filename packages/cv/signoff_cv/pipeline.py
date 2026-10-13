@@ -6,7 +6,6 @@ import hashlib
 import json
 import math
 import platform
-import subprocess
 from collections import deque
 from collections.abc import Callable, Iterable
 from importlib.metadata import version
@@ -322,15 +321,9 @@ def analyze_video(
         "numpy": version("numpy"),
         "opencv": __import__("cv2").__version__,
     }
-    try:
-        result["provenance"]["code_sha"] = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=Path(__file__).resolve().parents[3],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
-    except (OSError, subprocess.CalledProcessError):
-        result["provenance"]["code_sha"] = None
+    from packages.domain.provenance import source_code_sha
+
+    result["provenance"]["code_sha"] = source_code_sha()
     if manifest is not None:
         result["provenance"]["manifest_sha256"] = _hash(video_path)
     result["analysis_hash"] = hashlib.sha256(

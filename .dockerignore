@@ -15,3 +15,5 @@ __pycache__
 *.mkv
 dist
 backups
+build
+*.egg-info

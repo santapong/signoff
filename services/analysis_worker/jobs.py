@@ -82,17 +82,10 @@ def default_analyzer(path: Path, profile: dict | None, clock_path: Path | None) 
     return analyze_video(path, profile=profile, clock_path=clock_path)
 
 
-def code_sha() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=Path(__file__).resolve().parents[2],
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=5,
-        ).strip()
-    except (OSError, subprocess.SubprocessError):
-        return "unknown"
+def code_sha() -> str | None:
+    from packages.domain.provenance import source_code_sha
+
+    return source_code_sha()
 
 
 class JobStore:
