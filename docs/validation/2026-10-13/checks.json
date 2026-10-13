@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-13",
+  "timezone": "Asia/Bangkok",
+  "baseline": "68e82928ce7950948c638cb5d13852eb6fe9c753",
+  "source_changed": false,
+  "pytest": {
+    "command": "venv/bin/python -m pytest -q",
+    "exit_code": 0,
+    "passed": 83,
+    "warnings": 2,
+    "duration_seconds": 110.15,
+    "scope": "existing suite; synthetic/file/mock fixtures, not physical qualification"
+  },
+  "ruff": {
+    "command": "venv/bin/ruff check --output-format concise",
+    "exit_code": 1,
+    "issues": 36
+  },
+  "reproductions": [
+    {
+      "name": "recorder_clock_replay",
+      "input": "four-frame generated MP4 plus frame_index.jsonl records {frame, ms}",
+      "observed": "TypeError: 'dict' object is not callable",
+      "source": "packages/cv/signoff_cv/source.py"
+    },
+    {
+      "name": "unlabeled_measurement_availability",
+      "input": "one detected cycle from 1000 to 2000 ms, no reference file",
+      "observed": {
+        "detection_available": true,
+        "f1": 0,
+        "success_rate": 0,
+        "outcome_samples": 0
+      },
+      "source": "packages/cv/signoff_cv/evaluate.py; packages/metrics/signoff_metrics.py"
+    },
+    {
+      "name": "reference_changes_operational_durations",
+      "input": {
+        "detected": [
+          1000,
+          2000
+        ],
+        "reference": [
+          0,
+          9000
+        ]
+      },
+      "observed": {
+        "duration_ms": 9000,
+        "cycles_per_min": 6.667
+      },
+      "source": "packages/metrics/signoff_metrics.py"
+    }
+  ],
+  "physical_device_access": false,
+  "deployment_performed": false
+}
