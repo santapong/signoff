@@ -177,7 +177,8 @@ def _looks_like_video(path: Path) -> bool:
 
 
 def capture_metadata(source_kind: str, capture_attested_by: str = "", session_name: str = ""):
-    if source_kind not in {"physical_robot_station", "manual_tabletop_rehearsal",
+    if not isinstance(source_kind, str) or source_kind not in {
+                           "physical_robot_station", "manual_tabletop_rehearsal",
                            "public_robot_video", "simulation", "unknown"}:
         raise HTTPException(422, "choose a supported source kind")
     if (not isinstance(capture_attested_by, str) or len(capture_attested_by) > 120

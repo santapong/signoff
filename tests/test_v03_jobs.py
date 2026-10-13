@@ -67,7 +67,7 @@ def test_source_attestation_never_certifies_physical_accuracy(env):
 
     from apps.api.main import capture_metadata
 
-    with pytest.raises(HTTPException, match="") as exc:
+    with pytest.raises(HTTPException) as exc:
         capture_metadata("physical_robot_station")
     assert exc.value.status_code == 422
     metadata = capture_metadata("physical_robot_station", "Owner", "Station first run")
