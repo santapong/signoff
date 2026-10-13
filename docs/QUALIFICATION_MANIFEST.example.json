@@ -6,5 +6,8 @@
   "capture_attested_by": null,
   "annotators": [],
   "annotator_kinds": {},
-  "sessions": []
+  "sessions": [],
+  "protocol_id": "pick-place-v1",
+  "protocol": null,
+  "protocol_sha256": null
 }

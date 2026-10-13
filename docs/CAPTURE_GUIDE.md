@@ -16,13 +16,32 @@ If robot hardware is still being prepared, practice the upload/review workflow w
 
 After screening, collect the roadmap's complete session dataset and freeze the development/validation/test split before changing detector settings. Independently label the visible cycle boundaries; preserve each reviewer identity and identify an assistant-assisted annotation as AI-assisted. Do not use detector outputs as reference labels.
 
+The reference path is headless. First export actual frame clocks:
+
+```sh
+venv/bin/python tools/annotate_reference.py MEDIA --map-only --frame-map source-frames.csv
+```
+
+Each reviewer watches the original recording externally in VLC/mpv, without detector predictions, and authors a CSV with `cycle,start_frame,end_frame,outcome,failure_type`. Import it using:
+
+```sh
+venv/bin/python tools/annotate_reference.py MEDIA --csv owner.csv \
+  --session SESSION_ID --annotator owner --out references/owner.jsonl
+```
+
+MEDIA may be a finalized recording manifest. The importer maps boundaries through the actual source clock, defaults outcomes to UNKNOWN and refuses to overwrite prior annotations. The legacy OpenCV GUI annotator is not supported by the chosen headless package. Post-analysis review in the browser is a separate correction workflow and cannot establish an independently blinded reference set.
+
 Start from `QUALIFICATION_MANIFEST.example.json`. Session entries contain session ID, split, relative video/reference/profile paths, SHA-256 for each file and the immutable profile hash. The data root is an explicit local directory; raw footage stays outside Git. Test with `venv/bin/python tools/qualify_dataset.py MANIFEST --data-root DATA --out data/qualification.json`. Exit 2 means pending/not qualified and retains reasons. It is not a passing score.
+
+Freeze `PROTOCOL.example.json` under the data root and store its SHA-256 in the manifest's `protocol_sha256`. Preserve two separate annotation artifacts per held-out session, declare reviewer kinds `human` or `ai_assisted`, and link them through a named human adjudication with its reason and reference hash. Recording clock sidecars are also frozen; duplicate footage cannot inflate split denominators.
 
 The owner attests which footage is physical. The tool verifies hashes, inputs, split isolation and measured accuracy; it does not independently authenticate a real-world capture from a source label alone.
 
 ## Owner pilot
 
 The owner operates the station and reviews a complete session. The assistant checks the software, evaluates the frozen observations and explains uncertainty. Record reviewer kind `OWNER`, the selected report hash, ACCEPT/HOLD/REJECT and a reason. This receipt is an owner pilot; it must not be described as external independent validation.
+
+For production eligibility, the owner acceptance must also bind the actual report file SHA-256, qualification receipt SHA-256 and frozen manifest SHA-256. The acceptance API computes the report file hash; provide the qualification and manifest hashes after reviewing the physical result. `tools/release_gate.py` verifies those bindings and the exact qualified source/profile/configuration/code/protocol before allowing production eligibility.
 
 A production release still needs actual station accuracy evidence and an accepted owner pilot. Until those receipts exist, the software package remains a release candidate.
 

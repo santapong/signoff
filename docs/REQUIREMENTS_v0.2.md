@@ -1,6 +1,6 @@
 # Signoff v0.2 requirements and execution contract
 
-Implementation through M7 and release preparation was authorized on 13 October 2026. Work is tracked in [issue 1](https://github.com/santapong/signoff/issues/1). The owner requested three bounded agents, focused checks and primary-source research when knowledge is insufficient. This document freezes the implementation requirements from CAMERA_FIRST_PLAN.md; historical phase labels are not proof of physical qualification.
+Implementation through M7 and release preparation was authorized on 13 October 2026. Work is tracked in [issue 1](https://github.com/santapong/signoff/issues/1). The owner requested multi-agent work, focused checks and research when knowledge is insufficient; execution used three bounded workers. This document freezes the implementation requirements from CAMERA_FIRST_PLAN.md; historical phase labels are not proof of physical qualification.
 
 | ID | Requirement | Verification |
 |---|---|---|
