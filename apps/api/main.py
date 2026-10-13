@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import os
@@ -82,6 +83,9 @@ async def lifespan(app: FastAPI):
 
     _stop_engine()
     store.stop()
+    from apps.api.evidence import shutdown_workspaces
+
+    await asyncio.to_thread(shutdown_workspaces, DATA_DIR, wait=True)
 
 
 app = FastAPI(title="Signoff Camera Measurement API", version="0.3.0-rc.1", lifespan=lifespan)
@@ -520,8 +524,10 @@ def review_submit(sid: str, body: dict[str, Any]) -> dict:
     }
 
 
+from apps.api.evidence import router as evidence_router  # noqa: E402
 from apps.api.live import router as live_router  # noqa: E402
 from apps.api.ui import router as ui_router  # noqa: E402
 
 app.include_router(live_router)
 app.include_router(ui_router)
+app.include_router(evidence_router)
