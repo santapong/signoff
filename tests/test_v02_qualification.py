@@ -141,9 +141,10 @@ def _receipts(frozen):
 
 def test_mocked_qualification_records_scope_lineage_kinds_and_uncertainty(frozen):
     receipt = evaluate_dataset(frozen["path"], frozen["root"])
-    assert receipt["qualification"]["status"] == "qualified"
-    assert receipt["qualification"]["physical"] is True
-    assert receipt["qualification"]["physically_qualified"] is True
+    assert receipt["cycle_qualification"]["status"] == "qualified"
+    assert receipt["qualification"]["status"] == "pending"
+    assert receipt["qualification"]["physical"] is False
+    assert receipt["qualification"]["physically_qualified"] is False
     assert receipt["qualification"]["external_validation"] is False
     assert receipt["qualification"]["annotator_kinds"]["assistant"] == "ai_assisted"
     assert receipt["receipt_hash"] == qualification_receipt_hash(receipt)
@@ -272,7 +273,9 @@ def test_legacy_matcher_or_false_score_denominators_never_qualify():
 def test_mocked_owner_acceptance_bound_to_all_receipts_is_eligible(frozen):
     arguments, receipt, report, pilot = _receipts(frozen)
     result = evaluate_release(**arguments)
-    assert result["status"] == "READY", result["blockers"]
+    assert result["status"] == "PENDING"
+    assert any("soak" in reason for reason in result["blockers"])
+    assert any("inactivity" in reason for reason in result["blockers"])
     assert result["pilot_kind"] == "OWNER"
     assert result["external_validation"] is False
     assert result["report_hash"] == report["report_hash"]
