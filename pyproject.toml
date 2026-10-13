@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "signoff-camera"
-version = "0.2.0rc1"
+version = "0.3.0rc1"
 description = "Camera-based robot task measurement and inspectable evidence"
 requires-python = ">=3.12,<3.14"
 license = "MIT"
@@ -29,4 +29,4 @@ dev = ["pytest==9.1.1", "ruff==0.17.0"]
 include = ["apps*", "packages*", "services*", "robotics*", "tools*"]
 
 [tool.setuptools.package-data]
-"apps.api" = ["templates/*.html"]
+"apps.api" = ["templates/*.html", "static/*.css", "static/*.js", "static/*.svg"]

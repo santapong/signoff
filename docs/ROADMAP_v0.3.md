@@ -1,6 +1,6 @@
 # Signoff v0.3 GUI and real camera plan
 
-Draft dated 13 October 2026. This plan extends the camera-first program with an operator GUI and a first real USB-camera pilot. The owner selected a USB webcam connected to this computer. Camera measurement remains primary; Embodied AI comparison remains secondary.
+Plan drafted 13 October 2026; implementation authorized 14 October 2026 under [issue #3](https://github.com/santapong/signoff/issues/3). The owner selected the [Evidence Workbench visual reference](design/EVIDENCE_WORKBENCH.md) and a USB webcam on this computer. Camera measurement remains primary; Embodied AI comparison remains secondary.
 
 The recommended next feature release is **v0.3.0**, delivered first as **v0.3.0-rc.1**. Keep v0.2.x for corrective changes to a released v0.2 line. The existing package is v0.2.0-rc1, not a physically qualified production release. GUI work and physical screening can proceed together; there is no requirement to publish v0.2.0 before developing v0.3.
 

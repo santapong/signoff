@@ -14,6 +14,7 @@ from typing import Any
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from packages.domain.ids import make_id
 from services.analysis_worker.jobs import (
@@ -83,7 +84,9 @@ async def lifespan(app: FastAPI):
     store.stop()
 
 
-app = FastAPI(title="Signoff Camera Measurement API", version="0.2.0-rc1", lifespan=lifespan)
+app = FastAPI(title="Signoff Camera Measurement API", version="0.3.0-rc.1", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static", check_dir=False),
+          name="static")
 
 
 @app.middleware("http")
@@ -92,7 +95,7 @@ async def auth_middleware(request: Request, call_next):
 
     path = request.url.path
     open_paths = {"/health", "/ui/login", "/docs", "/openapi.json", "/redoc"}
-    if path not in open_paths:
+    if path not in open_paths and not path.startswith("/static/"):
         try:
             check_request(request)
             if request.method not in {"GET", "HEAD", "OPTIONS"}:
@@ -115,7 +118,7 @@ async def auth_middleware(request: Request, call_next):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "version": "0.2.0-rc1", "data_dir": str(DATA_DIR)}
+    return {"status": "ok", "version": "0.3.0-rc.1", "data_dir": str(DATA_DIR)}
 
 
 @app.get("/profiles")
@@ -173,6 +176,20 @@ def _looks_like_video(path: Path) -> bool:
         return False
 
 
+def capture_metadata(source_kind: str, capture_attested_by: str = "", session_name: str = ""):
+    if source_kind not in {"physical_robot_station", "manual_tabletop_rehearsal",
+                           "public_robot_video", "simulation", "unknown"}:
+        raise HTTPException(422, "choose a supported source kind")
+    if (not isinstance(capture_attested_by, str) or len(capture_attested_by) > 120
+            or not isinstance(session_name, str) or len(session_name) > 120):
+        raise HTTPException(422, "capture owner and session name must be text of at most "
+                            "120 characters")
+    if source_kind == "physical_robot_station" and not capture_attested_by.strip():
+        raise HTTPException(422, "physical footage requires a named capture owner attestation")
+    return {"source_kind": source_kind, "capture_attested_by": capture_attested_by.strip(),
+            "name": session_name.strip(), "physical_capture_verified": False}
+
+
 @app.post("/sessions/upload", status_code=201)
 async def upload(
     video: UploadFile = File(...),
@@ -183,7 +200,11 @@ async def upload(
     controller_label: str = Form("unspecified"),
     policy_label: str = Form("unspecified"),
     protocol_id: str = Form("camera-v2-unqualified"),
+    source_kind: str = Form("unknown"),
+    capture_attested_by: str = Form(""),
+    session_name: str = Form(""),
 ) -> dict:
+    metadata = capture_metadata(source_kind, capture_attested_by, session_name)
     suffix = Path(video.filename or "").suffix.lower()
     if suffix not in {".mp4", ".mkv"}:
         raise HTTPException(415, "supported media extensions are MP4 and MKV")
@@ -219,6 +240,7 @@ async def upload(
         "schema_version": 2,
         "session_id": sid,
         **labels,
+        **metadata,
         "video_file": dest.name,
         "video_sha256": sha256(dest),
         "notes": notes,
@@ -307,6 +329,16 @@ def run_status(run_id: str) -> dict:
         for key, value in item.items()
         if key not in {"session", "profile", "reviewed_cycles"}
     }
+
+
+@app.get("/sessions/{sid}/runs")
+def session_runs(sid: str) -> dict:
+    session_path(sid)
+    rows = [run_status(row["run_id"]) for row in jobs().session_runs(sid)]
+    return {"session_id": sid, "runs": rows,
+            "active_run": next((row for row in rows
+                                if row["state"] in {"queued", "running"}), None),
+            "latest_complete_run": latest_run(sid)}
 
 
 @app.get("/runs/{run_id}/artifacts/{name}")
@@ -420,6 +452,9 @@ def review_submit(sid: str, body: dict[str, Any]) -> dict:
             start, end = float(row["start_ms"]), float(row["end_ms"])
             outcome = row.get("outcome", "UNKNOWN")
             failure = row.get("failure_type", "NONE")
+            notes = row.get("notes", "")
+            if not isinstance(notes, str) or len(notes) > 2000:
+                raise ValueError("notes must be text of at most 2000 characters")
             if float(row["cycle"]) != cycle:
                 raise ValueError("cycle must be an integer")
             if cycle not in detected:
@@ -451,6 +486,7 @@ def review_submit(sid: str, body: dict[str, Any]) -> dict:
                     "cycle_end_ms": end,
                     "outcome": outcome,
                     "failure_type": failure,
+                    "notes": notes,
                     "annotator": annotator,
                     "session": sid,
                     "detected_cycle_id": detected[cycle].get("cycle_id"),
