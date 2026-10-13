@@ -4,10 +4,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from packages.cv.signoff_cv.motion import MotionSignal
 from packages.cv.signoff_cv.segmenter import DetectedInterval
-from packages.cv.signoff_cv.states import (
-    hypothesize_failure, needs_review, split_phases)
+from packages.cv.signoff_cv.states import hypothesize_failure, needs_review, split_phases
 from packages.cv.signoff_cv.tracking import CentroidTracker
 
 
@@ -100,12 +98,15 @@ class TestReviewAPI:
     def client(self, tmp_path, monkeypatch):
         monkeypatch.setenv("SIGNOFF_DATA_DIR", str(tmp_path / "data"))
         import importlib
+
         import apps.api.main as api_main
         importlib.reload(api_main)
         from fastapi.testclient import TestClient
-        return TestClient(api_main.app)
+        monkeypatch.delenv("SIGNOFF_TOKEN", raising=False)
+        with TestClient(api_main.app) as tc:
+            yield tc
 
-    def _upload_and_analyze(self, client):
+    def _upload(self, client):
         import cv2
         path = "/tmp/_p4.mp4"
         w = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), 30, (160, 120))
@@ -120,10 +121,22 @@ class TestReviewAPI:
         data = open(path, "rb").read()
         r = client.post("/sessions/upload",
                         files={"video": ("t.mp4", data, "video/mp4")})
-        sid = r.json()["session_id"]
+        assert r.status_code == 201, r.text
+        return r.json()["session_id"]
+
+    def _upload_and_analyze(self, client):
+        sid = self._upload(client)
         ra = client.post(f"/sessions/{sid}/analyze")
-        assert ra.status_code == 200, ra.text
-        return sid
+        assert ra.status_code == 202, ra.text
+        import time
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            run = client.get(ra.json()["status_url"]).json()
+            if run["state"] in {"complete", "failed", "interrupted"}:
+                assert run["state"] == "complete", run
+                return sid
+            time.sleep(0.02)
+        pytest.fail("analysis did not finish within 30 seconds")
 
     def test_review_roundtrip(self, client):
         sid = self._upload_and_analyze(client)
@@ -148,9 +161,17 @@ class TestReviewAPI:
         assert r2.json()["written"] == 2
 
         # annotation file exists and validates per domain schema on read-back
-        from packages.domain.annotations import read_annotations
-        anns = read_annotations(r2.json()["file"] and
-                                __import__("pathlib").Path(r2.json()["file"]))
+        import json
+        from pathlib import Path
+
+        from packages.domain.annotations import validate_annotation
+        revision = json.loads(Path(r2.json()["file"]).read_text())
+        assert revision["schema_version"] == 2
+        assert revision["revision_id"] == r2.json()["revision_id"]
+        assert revision["run_id"] == analysis["run_id"]
+        anns = revision["cycles"]
+        for row in anns:
+            validate_annotation(row, 6000.0)
         assert len(anns) == 2
         assert anns[0]["outcome"] == "FAILED"
         assert all(a["annotator"] == "tester" for a in anns)
@@ -164,9 +185,8 @@ class TestReviewAPI:
         assert r.status_code == 422
 
     def test_review_before_analyze_404(self, client):
-        r = client.post("/sessions/upload",
-                        files={"video": ("x.mp4", b"\x00" * 64, "video/mp4")})
-        # upload may fail validation for junk bytes; only test review path if ok
-        if r.status_code == 200:
-            sid = r.json()["session_id"]
-            assert client.get(f"/sessions/{sid}/review").status_code == 404
+        sid = self._upload(client)
+        assert client.get(f"/sessions/{sid}/review").status_code == 404
+        junk = client.post("/sessions/upload",
+                           files={"video": ("x.mp4", b"\x00" * 64, "video/mp4")})
+        assert junk.status_code == 415

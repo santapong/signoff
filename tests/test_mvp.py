@@ -11,10 +11,13 @@ import pytest
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("SIGNOFF_DATA_DIR", str(tmp_path / "data"))
     import importlib
+
     import apps.api.main as api_main
     importlib.reload(api_main)
     from fastapi.testclient import TestClient
-    return TestClient(api_main.app), api_main
+    monkeypatch.delenv("SIGNOFF_TOKEN", raising=False)
+    with TestClient(api_main.app) as tc:
+        yield tc, api_main
 
 
 def _demo_mp4() -> bytes:
@@ -32,18 +35,30 @@ def _demo_mp4() -> bytes:
     return open(path, "rb").read()
 
 
+def _wait_run(tc, url):
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        run = tc.get(url).json()
+        if run["state"] in {"complete", "failed", "interrupted"}:
+            assert run["state"] == "complete", run
+            return run
+        time.sleep(0.02)
+    pytest.fail("analysis did not finish within 30 seconds")
+
+
 class TestAC1_SessionListUI:
     def test_index_empty(self, client):
         tc, _ = client
         r = tc.get("/ui/")
         assert r.status_code == 200
-        assert "No sessions yet" in r.text
+        assert "No sessions" in r.text
 
     def test_sessions_json_endpoint(self, client):
         tc, _ = client
         data = _demo_mp4()
         r = tc.post("/sessions/upload",
                     files={"video": ("t.mp4", data, "video/mp4")})
+        assert r.status_code == 201, r.text
         sid = r.json()["session_id"]
         listing = tc.get("/sessions").json()["sessions"]
         assert len(listing) == 1
@@ -67,18 +82,22 @@ class TestAC2_BrowserOnlyLoop:
                     files={"video": ("pilot.mp4", data, "video/mp4")},
                     data={"notes": "pilot loop"},
                     follow_redirects=False)
-        assert r.status_code == 303, r.text
-        detail_url = r.headers["location"]
+        assert r.status_code == 200, r.text
+        detail_url = r.json()["redirect"]
         sid = detail_url.rsplit("/", 1)[-1]
 
         # step 2: analyze via the API button equivalent
         ra = tc.post(f"/sessions/{sid}/analyze")
-        assert ra.status_code == 200
+        assert ra.status_code == 202
+        run = _wait_run(tc, ra.json()["status_url"])
+        assert tc.get(run["artifacts"]["report.json"]).status_code == 200
 
         # step 3: view the report on the session page
         rd = tc.get(detail_url)
         assert rd.status_code == 200
         assert f"Session {sid}" in rd.text
+        assert "pilot loop" in rd.text
+        assert 'id="review-form"' in rd.text
         assert "# Signoff Report" in rd.text or "Metrics" in rd.text
         assert "Success rate" in rd.text or "report" in rd.text.lower()
 
