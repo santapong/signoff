@@ -1,0 +1,19 @@
+window.Signoff={
+ csrf(){return decodeURIComponent((document.cookie.split('; ').find(x=>x.startsWith('signoff_csrf='))||'=').split('=').slice(1).join('='))},
+ async request(url,body,method='POST'){
+  const headers={'X-CSRF-Token':this.csrf()};const options={method,headers};
+  if(body!==undefined){if(!(body instanceof FormData))headers['Content-Type']='application/json';options.body=body instanceof FormData?body:JSON.stringify(body)}
+  const r=await fetch(url,options);const raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={detail:raw}}
+  if(!r.ok){const detail=typeof d.detail==='string'?d.detail:JSON.stringify(d.detail||d);throw Error(detail||r.statusText)}return d;
+ },
+ notice(message,kind=''){const e=document.getElementById('notice');if(!e)return;e.textContent=typeof message==='string'?message:message.message||'Saved successfully.';e.className='notice '+kind},
+ busy(button,active,label){if(!button)return;if(active){button.dataset.label=button.textContent;button.disabled=true;if(label)button.textContent=label}else{button.disabled=false;button.textContent=button.dataset.label||button.textContent}},
+ time(ms){if(ms===undefined||ms===null)return'N/A';const s=Math.max(0,Number(ms))/1000;return Math.floor(s/60).toString().padStart(2,'0')+':'+(s%60).toFixed(1).padStart(4,'0')},
+ number(value,digits=1){return value===null||value===undefined?'N/A':Number(value).toFixed(digits)},
+ sourceLabel(value){return {physical_robot_station:'Physical robot station — owner attested',manual_tabletop_rehearsal:'Tabletop rehearsal',public_robot_video:'Public robot footage',simulation:'Simulation',unknown:'Source type not declared'}[value]||'Source type not declared'},
+ node(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
+};
+window.api=(...args)=>Signoff.request(...args);window.notice=(...args)=>Signoff.notice(...args);
+document.querySelectorAll('form[data-api]').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const button=form.querySelector('button[type=submit],button:not([type])');Signoff.busy(button,true,'Uploading…');try{const d=await api(form.action,new FormData(form));if(d.redirect)location.assign(d.redirect);else notice('Saved successfully.','success')}catch(e){notice(e.message,'error');Signoff.busy(button,false)}}));
+document.querySelectorAll('[data-source-kind]').forEach(select=>{const form=select.closest('form');const toggle=()=>{const field=form.querySelector('[data-attestation]');if(field){field.hidden=select.value!=='physical_robot_station';field.querySelector('input').required=select.value==='physical_robot_station'}};select.addEventListener('change',toggle);toggle()});
+Signoff.scoreTable=function(rows,{title='Saved scoring results',inactivity=false}={}){const wrapper=this.node('div',undefined,'table-scroll'),heading=this.node('h3',title);wrapper.append(heading);const table=this.node('table',undefined,'data-table'),head=this.node('thead'),tr=this.node('tr');for(const label of ['Session',inactivity?'Episodes':'Reference cycles','TP / FP / FN','Precision','Recall','F1','Coverage'])tr.append(this.node('th',label));head.append(tr);table.append(head);const body=this.node('tbody');for(const row of rows||[]){const s=row.score||{},r=this.node('tr');for(const value of [row.session_id,s.ground_truth_cycles??s.count_error?.reference??'N/A',[s.true_positives??'N/A',s.false_positives??'N/A',s.false_negatives??'N/A'].join(' / '),this.number(s.precision,3),this.number(s.recall,3),this.number(s.f1,3),row.coverage?.usable_ratio===undefined?'N/A':(row.coverage.usable_ratio*100).toFixed(1)+'%'])r.append(this.node('td',value));body.append(r)}table.append(body);wrapper.append(table);if(!(rows||[]).length)wrapper.append(this.node('p','No saved scoring rows available.','small muted'));return wrapper};
