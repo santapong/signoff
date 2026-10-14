@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "asset": "signoff-banner.png",
+  "created_date": "2026-10-14",
+  "timezone": "Asia/Bangkok",
+  "tool_mode": "built-in image_gen",
+  "tool_name": "image_gen.imagegen",
+  "use_case": "ads-marketing",
+  "generation_intent": "generate",
+  "input_images": [],
+  "original_output_path": "/home/santapong/.codex/generated_images/01a13b03-63b6-7391-b900-d824c4dc19cf/exec-bfd17877-2912-4c6e-9c72-b9d47b7ff63d.png",
+  "filename": "signoff-banner.png",
+  "mime_type": "image/png",
+  "width_px": 2172,
+  "height_px": 724,
+  "bytes": 1477748,
+  "sha256": "a5cd3e938c5190aab225354c99dd1493074189afd09f1b00ba4091c8a914cf32",
+  "transparent_background": false,
+  "post_generation_edits": [],
+  "illustrative_scope": "Generated technical illustration for the repository banner. The camera, robot arm, task regions, frames, timeline and report are symbolic; this is not a real station recording, a product screenshot, or qualification evidence.",
+  "text_verbatim": [
+    "SIGNOFF",
+    "Camera measurement. Inspectable evidence."
+  ],
+  "validation": {
+    "inspected_original_resolution": true,
+    "exact_title_and_subtitle_verified": true,
+    "single_camera_verified": true,
+    "no_performance_or_readiness_claims": true,
+    "source_dimensions_verified_from_png_header": true,
+    "targeted_corrections": 0
+  },
+  "prompt": "Use case: ads-marketing.\nAsset type: a polished wide GitHub repository README banner for the software project Signoff, about 3:1 aspect ratio. Create a brand-new bitmap illustration.\nPrimary request: introduce a camera-first measurement and evidence workbench for automation engineers.\nScene/backdrop: deep navy ink background, restrained subtle technical grid, generous empty space.\nSubject: on the right half, one prominent fixed industrial-style USB camera watching a compact tabletop robot-arm task area with three simple outlined regions. A delicate violet sight cone links the camera to the task surface. Beside it, a compact abstract sequence of original video frames connects to a cycle timeline and a report sheet. These are symbolic illustration, not screenshots. Show only one camera. The arm is a contextual object, the camera and observable evidence are the story.\nStyle/medium: sophisticated editorial technical illustration; crisp geometric forms, subtle dimensional shading, clean edges, sparse details, premium engineering identity. No photorealism.\nComposition/framing: very wide landscape composition approximately 3:1. Left 45 percent is quiet negative space for clear title and subtitle. Right 55 percent holds the technical illustration with a balanced horizontal silhouette. All important content inside generous margins; avoid excessive height. Render at a high readable resolution appropriate for a repository banner.\nColor palette: navy ink #111a31, pale ivory #f5f4fa typography, violet #8b7cf8 accent, cool gray secondary lines, restrained pale light surfaces. No neon overload.\nText (verbatim): \"SIGNOFF\" as the only large heading, in confident clean sans-serif capitals. Beneath it, \"Camera measurement. Inspectable evidence.\" as the exact smaller subtitle, in pale type. Check spelling carefully. No additional words, letters, numbers, badges, logos, labels, or symbols resembling text.\nConstraints: trustworthy software illustration. No claims of certification, qualification or production readiness. No checkmarks or performance statistics. Do not imitate a real station recording or actual application UI. No humans, no LLM/chat motifs, no floating brains, no multicamera scene, no watermark. Keep the subtitle fully readable and title crisp."
+}

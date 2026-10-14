@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/mnt/data/signoff-docs-v03/docs/architecture/signoff-system.architecture.json",
+  "output": "/mnt/data/signoff-docs-v03/docs/architecture/signoff-system.html",
+  "specification": {
+    "sha256": "1bbe7e77676fefb9ceb6ea9b30086b77ebf53c937de4b5d9bf65477e694649d0",
+    "bytes": 8945
+  },
+  "artifact": {
+    "sha256": "872159d90e1b2a169a07690b3853a3d6ef73048ff2182acaa319889446ca5675",
+    "bytes": 722558
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/santapong/signoff",
+    "revision": "ad420c4c49ed6d47f68ecfb6be21680ffacba90b",
+    "references": 23
+  }
+}
