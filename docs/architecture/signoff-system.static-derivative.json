@@ -1,0 +1,20 @@
+{
+  "method": "static derivative from trusted HTML; not native Viewer export",
+  "source_html_sha256": "872159d90e1b2a169a07690b3853a3d6ef73048ff2182acaa319889446ca5675",
+  "source_specification_sha256": "1bbe7e77676fefb9ceb6ea9b30086b77ebf53c937de4b5d9bf65477e694649d0",
+  "svg_sha256": "068ab55eef911497ada317507910566a018b658006a6be86bd29f6843368980a",
+  "svg_bytes": 28410,
+  "original_geometry_and_text_preserved": true,
+  "viewBox": "0 0 1060 624",
+  "nodes": 11,
+  "source_facts": 23,
+  "css_rule_count": 24,
+  "theme": "light",
+  "scripts": 0,
+  "external_resources": 0,
+  "browser_action_used": false,
+  "svg_validation": "Standalone XML + exact original graphics/text/coordinate signature passed",
+  "png_status": "not_delivered: existing non-browser ImageMagick SVG render failed perceptual review",
+  "png_preview": "Unchanged signoff-system.visual-check.2048x1320.light.png; viewer screenshot, not native export",
+  "browser_policy": "file: navigation denied; no workaround used"
+}

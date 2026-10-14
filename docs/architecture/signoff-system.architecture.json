@@ -1,0 +1,401 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Signoff system architecture",
+    "locale": "en",
+    "animation": "none",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/santapong/signoff",
+      "revision": "ad420c4c49ed6d47f68ecfb6be21680ffacba90b"
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [
+      40,
+      50
+    ],
+    "cols": 5,
+    "gapX": 95,
+    "gapY": 130,
+    "cellW": 120,
+    "cellH": 82
+  },
+  "components": [
+    {
+      "id": "workbench",
+      "type": "frontend",
+      "label": "Evidence Workbench",
+      "sublabel": "Local browser",
+      "row": 1,
+      "col": 0,
+      "sources": [
+        {
+          "path": "apps/api/ui.py",
+          "label": "Workbench views"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "FastAPI boundary",
+      "sublabel": "Optional token auth",
+      "row": 1,
+      "col": 1,
+      "sources": [
+        {
+          "path": "apps/api/main.py",
+          "line": 113,
+          "label": "HTTP authentication"
+        },
+        {
+          "path": "apps/api/auth.py",
+          "label": "Token and CSRF checks"
+        },
+        {
+          "path": "apps/api/live.py",
+          "label": "Live routes and WebSocket"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "capture",
+      "type": "backend",
+      "label": "One capture owner",
+      "sublabel": "Preview / record",
+      "row": 1,
+      "col": 2,
+      "sources": [
+        {
+          "path": "services/live_worker/engine.py",
+          "label": "Capture and actual observations"
+        },
+        {
+          "path": "apps/api/live.py",
+          "label": "Ownership and stop guard"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "measurement",
+      "type": "backend",
+      "label": "Measurement engine",
+      "sublabel": "CV + analysis queue",
+      "row": 1,
+      "col": 3,
+      "sources": [
+        {
+          "path": "packages/cv/signoff_cv/pipeline.py",
+          "label": "Recorded/live measurement"
+        },
+        {
+          "path": "packages/cv/signoff_cv/source.py",
+          "label": "Authoritative source clocks"
+        },
+        {
+          "path": "services/analysis_worker/jobs.py",
+          "label": "Bounded analysis worker"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "reports",
+      "type": "backend",
+      "label": "Frozen reports",
+      "sublabel": "Immutable exports",
+      "row": 1,
+      "col": 4,
+      "sources": [
+        {
+          "path": "services/analysis_worker/jobs.py",
+          "label": "Immutable run publication"
+        },
+        {
+          "path": "packages/metrics/signoff_metrics.py",
+          "label": "Observed and reviewed metrics"
+        },
+        {
+          "path": "packages/reporting/signoff_report.py",
+          "label": "Versioned exports"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "originals",
+      "type": "backend",
+      "label": "Original files",
+      "sublabel": "Files + clocks",
+      "row": 0,
+      "col": 2,
+      "sources": [
+        {
+          "path": "services/video_worker/recorder.py",
+          "label": "Lossless archive and sidecars"
+        },
+        {
+          "path": "packages/cv/signoff_cv/source.py",
+          "label": "Uploads and recorded replay"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "comparison",
+      "type": "backend",
+      "label": "Compare runs",
+      "sublabel": "Provisional adapter",
+      "row": 0,
+      "col": 4,
+      "sources": [
+        {
+          "path": "packages/domain/comparison.py",
+          "label": "Frozen-report comparison"
+        },
+        {
+          "path": "tools/compare_experiments.py",
+          "label": "Comparison CLI"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "references",
+      "type": "backend",
+      "label": "Blinded references",
+      "sublabel": "Blinded originals",
+      "row": 2,
+      "col": 1,
+      "sources": [
+        {
+          "path": "packages/domain/reference_workspace.py",
+          "label": "Source-only reference revisions"
+        },
+        {
+          "path": "apps/api/evidence.py",
+          "label": "Frame and adjudication routes"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "qualification",
+      "type": "backend",
+      "label": "Qualification",
+      "sublabel": "Replay + references",
+      "row": 2,
+      "col": 2,
+      "sources": [
+        {
+          "path": "tools/qualify_dataset.py",
+          "label": "Independent scoring and soak"
+        },
+        {
+          "path": "packages/domain/qualification_workspace.py",
+          "label": "Freeze and bounded executor"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "owner",
+      "type": "security",
+      "label": "OWNER decision",
+      "sublabel": "Bound evidence",
+      "row": 2,
+      "col": 3,
+      "sources": [
+        {
+          "path": "apps/api/evidence.py",
+          "label": "Verified owner bindings"
+        },
+        {
+          "path": "apps/api/ui.py",
+          "label": "Explicit acceptance receipt"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    },
+    {
+      "id": "release",
+      "type": "security",
+      "label": "Release eligibility",
+      "sublabel": "Awaiting real proof",
+      "row": 2,
+      "col": 4,
+      "sources": [
+        {
+          "path": "tools/release_gate.py",
+          "label": "No publishing or deployment"
+        }
+      ],
+      "size": [
+        120,
+        82
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "operator-http",
+      "from": "workbench",
+      "to": "api",
+      "label": "HTTP",
+      "variant": "emphasis"
+    },
+    {
+      "id": "explicit-capture",
+      "from": "api",
+      "to": "capture",
+      "label": "open / record",
+      "variant": "emphasis"
+    },
+    {
+      "id": "live-observation",
+      "from": "capture",
+      "to": "measurement",
+      "label": "same frame",
+      "variant": "emphasis"
+    },
+    {
+      "id": "measured-evidence",
+      "from": "measurement",
+      "to": "reports",
+      "label": "observations",
+      "variant": "emphasis"
+    },
+    {
+      "id": "archive-originals",
+      "from": "capture",
+      "to": "originals",
+      "label": "FFV1 + clocks",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "recorded-originals",
+      "from": "originals",
+      "to": "measurement",
+      "label": "recorded replay",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "blinded-reference-access",
+      "from": "api",
+      "to": "references",
+      "label": "source only",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "independent-reference-lineage",
+      "from": "references",
+      "to": "qualification",
+      "label": "adjudication"
+    },
+    {
+      "id": "frozen-scope-reanalysis",
+      "from": "qualification",
+      "to": "measurement",
+      "label": "frozen replay",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "qualified-receipt",
+      "from": "qualification",
+      "to": "owner",
+      "label": "receipt"
+    },
+    {
+      "id": "selected-frozen-report",
+      "from": "reports",
+      "to": "owner",
+      "label": "report hash",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "owner-release-binding",
+      "from": "owner",
+      "to": "release",
+      "label": "ACCEPT",
+      "variant": "security"
+    },
+    {
+      "id": "secondary-comparison",
+      "from": "reports",
+      "to": "comparison",
+      "label": "compare",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Local runtime",
+      "items": [
+        "One process: one capture owner, 32 pending analysis jobs, one active qualifier.",
+        "Optional SIGNOFF_TOKEN; CSRF on writes; /live/ws for optional clients."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Evidence separation",
+      "items": [
+        "Reference labels never enter inference.",
+        "Originals, reviews and frozen reports retain separate identities; hashes prove integrity, not external authenticity."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Physical acceptance remains pending",
+      "items": [
+        "Real station data, 100 inactivity episodes, a two-hour soak and explicit OWNER acceptance are required.",
+        "Signoff does not control robots or train policies."
+      ]
+    }
+  ]
+}

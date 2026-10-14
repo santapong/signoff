@@ -1,0 +1,32 @@
+{
+  "diagram_type": "architecture",
+  "output": "signoff-system.html",
+  "specification_sha256": "1bbe7e77676fefb9ceb6ea9b30086b77ebf53c937de4b5d9bf65477e694649d0",
+  "artifact_sha256": "872159d90e1b2a169a07690b3853a3d6ef73048ff2182acaa319889446ca5675",
+  "validation": "9/9 showcase, 0 errors, 0 warnings",
+  "browser_evidence": "passed",
+  "browser_receipt": "signoff-system.visual-check.json",
+  "visual_review": "passed",
+  "correction_rounds": 0,
+  "visual_review_scope": {
+    "evidence": "Exact delivered light/dark screenshots at1440x900 and2048x1320 were inspected by image-capable agent; root independently inspected both largest captures.",
+    "source_artifact_sha256": "872159d90e1b2a169a07690b3853a3d6ef73048ff2182acaa319889446ca5675",
+    "mode": "READ, Still",
+    "observations": [
+      "Main left-to-right path is readable; independent evidence and provisional comparison remain distinct side paths.",
+      "No visible clipping, unrelated-node crossings or conspicuous empty lower band; cards remain contained in both endpointthemes."
+    ],
+    "post_delivery_candidate_edits": 0
+  },
+  "repository_revision": "ad420c4c49ed6d47f68ecfb6be21680ffacba90b",
+  "verified_source_references": 23,
+  "static_exports": {
+    "status": "svg_delivered",
+    "method": "static derivative from trusted HTML; not native Viewer export",
+    "svg": "signoff-system.svg",
+    "svg_sha256": "068ab55eef911497ada317507910566a018b658006a6be86bd29f6843368980a",
+    "receipt": "signoff-system.static-derivative.json",
+    "png_status": "not_delivered: existing non-browser ImageMagick SVG render failed perceptual review",
+    "png_preview": "Unchanged signoff-system.visual-check.2048x1320.light.png; viewer screenshot, not native export"
+  }
+}
