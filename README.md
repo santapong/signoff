@@ -83,6 +83,7 @@ The manifest selects frozen report files and declares experiment/controller/poli
 
 ## Documentation
 
+- [Runtime architecture and maintenance boundaries](docs/ARCHITECTURE.md)
 - [Camera-first roadmap](docs/CAMERA_FIRST_PLAN.md)
 - [Requirements and implementation contract](docs/REQUIREMENTS_v0.2.md)
 - [Current milestone status](docs/PROJECT_STATUS.md)

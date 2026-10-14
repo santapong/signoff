@@ -1,5 +1,23 @@
 # Signoff current milestone status
 
+## Maintenance scope on 14 October 2026
+
+The owner requests maintenance only: fixes, measured optimization and architecture
+updates, with no new product features. [Issue #5](https://github.com/santapong/signoff/issues/5)
+tracks this bounded pass. The existing Evidence Workbench candidate is preserved;
+real station qualification remains pending under issue #3. See the implemented
+[runtime architecture](ARCHITECTURE.md) for module boundaries and lifecycle/data
+invariants. Maintenance test and benchmark results are recorded separately from
+physical acceptance.
+
+The bounded maintenance change adds eight-frame adjacent JPEG reuse while
+retaining source/clock/index integrity checks, guarantees all owned worker cleanup
+on exceptional lifecycle exits, and releases failed-recovery process locks.
+The [simulation benchmark](validation/2026-10-14/reference-maintenance.json) reduced
+decoded work by 66.6% and median three-frame navigation time from 9.27 s to 2.76 s
+on the declared low-resolution fixture. Cold/random late-frame decoding remains
+linear. Prior candidate artifacts and frozen evidence remain unchanged.
+
 ## Evidence Workbench continuation on 14 October 2026
 
 The owner selected the Evidence Workbench direction and authorized the v0.3 program under [issue #3](https://github.com/santapong/signoff/issues/3). G0–G5 software is implemented: visual stations and explicit preview/capture, session job recovery and review, original-frame references, structured qualification and exact owner evidence bindings. The v0.3.0-rc.1 candidate is for rehearsal and commissioning.

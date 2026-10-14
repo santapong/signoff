@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import threading
+from collections import OrderedDict
 from pathlib import Path
 
 from packages.cv.signoff_cv.source import VideoFileSource
@@ -16,6 +17,45 @@ from services.analysis_worker.jobs import utcnow, verified_hash
 from tools.annotate_reference import _media_sources, _write_immutable, read_frame_clock
 
 _LOCK = threading.RLock()
+_FRAME_WINDOW = 8
+
+
+class _JpegCache:
+    """Bound viewing derivatives; no decoder or image array survives a request."""
+
+    def __init__(self, max_entries: int = 32, max_bytes: int = 8 * 1024 * 1024):
+        self.max_entries, self.max_bytes = max_entries, max_bytes
+        self.entries: OrderedDict[tuple, bytes] = OrderedDict()
+        self.size_bytes = 0
+        self.lock = threading.RLock()
+
+    def get(self, key: tuple) -> bytes | None:
+        with self.lock:
+            if any(
+                previous[:3] == key[:3] and previous[:-1] != key[:-1] for previous in self.entries
+            ):
+                raise ValueError("source/clock/index identity changed since frame caching")
+            value = self.entries.get(key)
+            if value is not None:
+                self.entries.move_to_end(key)
+            return value
+
+    def store(self, values: dict[tuple, bytes]) -> None:
+        with self.lock:
+            for key, value in values.items():
+                if len(value) > self.max_bytes:
+                    continue
+                previous = self.entries.pop(key, None)
+                if previous is not None:
+                    self.size_bytes -= len(previous)
+                self.entries[key] = value
+                self.size_bytes += len(value)
+                while len(self.entries) > self.max_entries or self.size_bytes > self.max_bytes:
+                    _key, evicted = self.entries.popitem(last=False)
+                    self.size_bytes -= len(evicted)
+
+
+_JPEG_CACHE = _JpegCache()
 
 
 def digest(value) -> str:
@@ -111,29 +151,81 @@ class ReferenceWorkspace:
         index = self.index()
         if source_hash != index["source_hash"]:
             raise ValueError("selected source revision is stale")
-        selected = next((row for row in index["frames"] if row["frame"] == frame_id), None)
-        if selected is None:
+        position = next(
+            (i for i, row in enumerate(index["frames"]) if row["frame"] == frame_id), None
+        )
+        if position is None:
             raise ValueError("original frame does not exist")
+        identity = self._frame_identity(index)
+        key = identity + (frame_id,)
+        cached = _JPEG_CACHE.get(key)
+        if cached is not None:
+            if self._frame_identity(self.index()) != identity:
+                raise ValueError("source/clock/index identity changed while serving a frame")
+            return cached
+        window = index["frames"][position : position + _FRAME_WINDOW]
         sources, _ = _media_sources(self.media, None)
-        match = [
-            (video, clock) for video, clock in sources if video.name == selected["source_file"]
-        ]
-        if len(match) != 1:
-            raise ValueError("source segment cannot be resolved unambiguously")
-        source = VideoFileSource(*match[0])
-        try:
-            for frame in source.frames():
-                if frame.frame_no == frame_id:
-                    if frame.ms != selected["ms"]:
-                        raise ValueError("source clock changed")
+        pending, size_bytes = {}, 0
+        while window:
+            filename = window[0]["source_file"]
+            match = [(video, clock) for video, clock in sources if video.name == filename]
+            if len(match) != 1:
+                raise ValueError("source segment cannot be resolved unambiguously")
+            selected = [row for row in window if row["source_file"] == filename]
+            remaining = {row["frame"]: row for row in selected}
+            source = VideoFileSource(*match[0])
+            full = False
+            try:
+                for frame in source.frames():
+                    expected = remaining.get(frame.frame_no)
+                    if expected is None:
+                        continue
+                    if frame.ms != expected["ms"] or frame.segment_id != expected["segment_id"]:
+                        raise ValueError("source clock or segment identity changed")
                     ok, encoded = cv2.imencode(".jpg", frame.image)
                     if not ok:
                         raise ValueError("original frame cannot be displayed")
-                    self.index()  # Recheck evidence before publishing the viewing derivative.
-                    return encoded.tobytes()
-        finally:
-            source.close()
-        raise ValueError("original frame disappeared")
+                    value = encoded.tobytes()
+                    # The selected frame is always returned; oversized derivatives
+                    # are not cached and do not trigger further speculative encoding.
+                    if pending and size_bytes + len(value) > _JPEG_CACHE.max_bytes:
+                        full = True
+                        break
+                    pending[identity + (frame.frame_no,)] = value
+                    size_bytes += len(value)
+                    remaining.pop(frame.frame_no)
+                    if size_bytes > _JPEG_CACHE.max_bytes:
+                        full = True
+                        break
+                    if not remaining:
+                        break
+            finally:
+                source.close()
+            if remaining and not full:
+                raise ValueError("original frame disappeared")
+            if full:
+                break
+            window = [row for row in window if row["source_file"] != filename]
+        # Validate against the initial snapshot, not merely a newly valid index.
+        if self._frame_identity(self.index()) != identity:
+            raise ValueError("source/clock/index identity changed while decoding")
+        _JPEG_CACHE.store(pending)
+        if key not in pending:
+            raise ValueError("original frame disappeared")
+        return pending[key]
+
+    def _frame_identity(self, index: dict) -> tuple:
+        cache = self.root / "reference-index" / f"{index['source_hash']}.json"
+        if cache.is_symlink():
+            raise ValueError("source frame index must be a regular immutable file")
+        return (
+            str(self.root),
+            self.sid,
+            index["source_hash"],
+            index["index_hash"],
+            verified_hash(cache),
+            digest(index["provenance"]),
+        )
 
     def get(self, revision_id: str) -> dict:
         path = self.root / "reference-revisions" / f"{validate_identifier(revision_id)}.json"

@@ -9,7 +9,7 @@ import os
 import re
 import secrets
 import threading
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -77,15 +77,32 @@ def profiles():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     store = jobs()
-    store.start()
-    yield
+    from apps.api.evidence import shutdown_workspaces
     from apps.api.live import _stop_engine
 
-    _stop_engine()
-    store.stop()
-    from apps.api.evidence import shutdown_workspaces
+    errors: list[BaseException] = []
 
-    await asyncio.to_thread(shutdown_workspaces, DATA_DIR, wait=True)
+    async def close_owned(function, *args, **kwargs):
+        try:
+            await asyncio.to_thread(function, *args, **kwargs)
+        except BaseException as exc:
+            errors.append(exc)
+
+    # Register all resources before startup. Collect off-thread failures
+    # explicitly: exception chaining alone can lose intermediate close errors.
+    async with AsyncExitStack() as cleanup:
+        cleanup.push_async_callback(close_owned, shutdown_workspaces, DATA_DIR, wait=True)
+        cleanup.push_async_callback(close_owned, store.stop)
+        cleanup.push_async_callback(close_owned, _stop_engine)
+        try:
+            store.start()
+            yield
+        except BaseException as exc:
+            errors.insert(0, exc)
+    if len(errors) == 1:
+        raise errors[0]
+    if errors:
+        raise BaseExceptionGroup("application lifecycle failures", errors)
 
 
 app = FastAPI(title="Signoff Camera Measurement API", version="0.3.0-rc.1", lifespan=lifespan)
