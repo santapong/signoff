@@ -98,25 +98,35 @@ class JobStore:
         self.stop_event = threading.Event()
         self.worker_lock = None
         self._acquire_worker_lock()
-        self.recover()
+        try:
+            self.recover()
+        except BaseException:
+            self._release_worker_lock()
+            raise
 
     def _acquire_worker_lock(self) -> None:
-        if self.worker_lock is not None:
-            return
-        self.root.mkdir(parents=True, exist_ok=True)
-        handle = (self.root / ".analysis-worker.lock").open("a")
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
-            handle.close()
-            raise RuntimeError("another application process owns the analysis worker") from exc
-        self.worker_lock = handle
+        with self.lock:
+            if self.worker_lock is not None:
+                return
+            self.root.mkdir(parents=True, exist_ok=True)
+            handle = (self.root / ".analysis-worker.lock").open("a")
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as exc:
+                handle.close()
+                raise RuntimeError("another application process owns the analysis worker") from exc
+            self.worker_lock = handle
 
     def _release_worker_lock(self) -> None:
-        if self.worker_lock is not None:
-            fcntl.flock(self.worker_lock, fcntl.LOCK_UN)
-            self.worker_lock.close()
+        with self.lock:
+            handle = self.worker_lock
+            if handle is None:
+                return
             self.worker_lock = None
+            try:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+            finally:
+                handle.close()
 
     def recover(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)

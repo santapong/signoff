@@ -1,0 +1,138 @@
+{
+  "after_module_sha256": "f90b1b0f5b0a5fda0230c0d6eb6f2dd90dcd72a4847efa16821398185bfa6233",
+  "after_state": "isolated uncommitted issue5 maintenance source",
+  "before_module_sha256": "c1e7ee68f1a9b7863dba0fcf81bca07c49040a214a8533375b4753ef98e9caf5",
+  "before_source_commit": "dedc62c4601a2e73ce2ff59ab424952cafd822c4",
+  "cache_limits": {
+    "entries": 32,
+    "forward_real_frames": 8,
+    "jpeg_bytes": 8388608
+  },
+  "date": "2026-10-14",
+  "environment": {
+    "av": "19.0.1",
+    "numpy": "2.5.4",
+    "opencv": "5.0.0",
+    "python": "3.12.9"
+  },
+  "exact_original_jpeg_bytes_equal": true,
+  "fixture": {
+    "clock_sha256": "cc99e847302c4c71a3cc4b1a7288ec0d2ed122e56455e9be727c39255064f4ea",
+    "codec": "FFV1/MKV",
+    "dimensions": [
+      160,
+      120
+    ],
+    "fps": 10,
+    "frame_count": 3600,
+    "original_index_hash": "9de9f99df86cfaf725e0298d32984a879745f8d2a26835674f1f9a09cc037a40",
+    "pixels": "uint8 BGR full frame value frame_number modulo251",
+    "selected_frame_ids": [
+      3590,
+      3591,
+      3592
+    ],
+    "timestamps_ms": "frame_number*100, authoritative pixel-hashed sidecar",
+    "video_sha256": "9e1bd4f2658db62634cc090ca64d2c967930ad6a6fe5d3221bd3a55349eddd18"
+  },
+  "kind": "reference_navigation_maintenance_benchmark",
+  "limitations": [
+    "Simulation only; no camera, robot, physical accuracy or qualification claim.",
+    "Cold/random late-frame requests still decode to their target; this improves adjacent navigation.",
+    "Index validation remains unchanged and still occurs before/after responses.",
+    "Timing depends on this local host; dimensions differ from1280x720 capture."
+  ],
+  "method": "Same generated media/index, warmed cv2 imports and integrity hashes; fresh bounded cache per after sequence; five repeats per version.",
+  "results": [
+    {
+      "decoded_frames": 53880,
+      "decoded_frames_per_sequence": 10776,
+      "jpeg_sha256": [
+        "35ab77411a9b5eefaed703213358338864c910535e411cf81e0126f5d8d8d76d",
+        "7d8c2738e2b84951a11469fe682eddf58d216e422a6ac455fb7e729c726b168a",
+        "5451c932491e64e7a746b444b40ef968967707f8d2a2a3c0c05887fd22c5113c"
+      ],
+      "peak_cached_jpeg_bytes": 0,
+      "repeats": 5,
+      "request_count": 15,
+      "request_median_ms": 2712.643,
+      "request_p95_nearest_rank_ms": 4469.434,
+      "requests_ms": [
+        [
+          3591.879,
+          3013.873,
+          2666.669
+        ],
+        [
+          2486.686,
+          3659.714,
+          3530.867
+        ],
+        [
+          1805.924,
+          2038.368,
+          2323.287
+        ],
+        [
+          2136.675,
+          3061.363,
+          4469.434
+        ],
+        [
+          3443.494,
+          2712.643,
+          1975.496
+        ]
+      ],
+      "sequence_median_ms": 9272.421,
+      "version": "before"
+    },
+    {
+      "decoded_frames": 17990,
+      "decoded_frames_per_sequence": 3598,
+      "jpeg_sha256": [
+        "35ab77411a9b5eefaed703213358338864c910535e411cf81e0126f5d8d8d76d",
+        "7d8c2738e2b84951a11469fe682eddf58d216e422a6ac455fb7e729c726b168a",
+        "5451c932491e64e7a746b444b40ef968967707f8d2a2a3c0c05887fd22c5113c"
+      ],
+      "peak_cached_jpeg_bytes": 7576,
+      "repeats": 5,
+      "request_count": 15,
+      "request_median_ms": 63.34,
+      "request_p95_nearest_rank_ms": 4063.671,
+      "requests_ms": [
+        [
+          2505.191,
+          41.826,
+          35.06
+        ],
+        [
+          2949.269,
+          45.927,
+          35.784
+        ],
+        [
+          2102.0,
+          32.873,
+          32.663
+        ],
+        [
+          2656.188,
+          63.34,
+          38.387
+        ],
+        [
+          4063.671,
+          144.698,
+          108.169
+        ]
+      ],
+      "sequence_median_ms": 2757.915,
+      "version": "after"
+    }
+  ],
+  "schema_version": 1,
+  "source_kind": "simulation",
+  "temporary_fixture_removed_after_measurement": true,
+  "timezone": "Asia/Bangkok"
+}
